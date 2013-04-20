@@ -28,15 +28,6 @@
 #include <openssl/rand.h>
 #include "CBAddress.h"
 
-void err(CBError a, char * format, ...);
-void err(CBError a, char * format, ...){
-	va_list argptr;
-    va_start(argptr, format);
-    vfprintf(stderr, format, argptr);
-    va_end(argptr);
-	printf("\n");
-}
-
 void getLine(char * ptr);
 void getLine(char * ptr) {
 	int c;
@@ -104,7 +95,7 @@ int main(){
 		}
 		SHA256(pubKey, pubSize, shaHash);
 		RIPEMD160(shaHash, 32, ripemdHash);
-		CBAddress * address = CBNewAddressFromRIPEMD160Hash(ripemdHash, CB_PRODUCTION_NETWORK_BYTE, false, err);
+		CBAddress * address = CBNewAddressFromRIPEMD160Hash(ripemdHash, CB_PRODUCTION_NETWORK_BYTE, false);
 		CBByteArray * string = CBVersionChecksumBytesGetString(CBGetVersionChecksumBytes(address));
 		CBReleaseObject(address);
 		bool match = true;

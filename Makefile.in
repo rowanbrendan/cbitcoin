@@ -174,3 +174,22 @@ $(TEST_BINARIES): bin/%: build/%.o
 
 $(TEST_OBJS): build/%.o: test/%.c
 	$(CC) -c $(CFLAGS) -I$(CURDIR)/dependencies/sockets/ -I$(CURDIR)/dependencies/storage $< -o $@
+
+
+
+# Examples
+
+EXAMPLES_FILES = $(wildcard examples/*.c)
+EXAMPLES_BINARIES = $(patsubst examples/%.c, bin/%, $(EXAMPLES_FILES))
+EXAMPLES_OBJS = $(patsubst examples/%.c, build/%.o, $(EXAMPLES_FILES))
+
+examples-build : all-build $(EXAMPLES_BINARIES)
+
+# REMEMBER to add dependencies after the objects or libraries that depend on them.
+
+$(EXAMPLES_BINARIES): bin/%: build/%.o
+	$(CC) $< -L$(BINDIR) -lpthread -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION)  -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -lcrypto -lev -g -o $@
+#	$@
+
+$(EXAMPLES_OBJS): build/%.o: examples/%.c
+	$(CC) -c $(CFLAGS) -I$(CURDIR)/dependencies/storage $< -o $@
