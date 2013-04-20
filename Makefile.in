@@ -2,7 +2,7 @@
 
 INCDIR = $(CURDIR)/include
 BINDIR = $(CURDIR)/bin
-CFLAGS += -Wall -Wno-overflow -Wno-uninitialized -Wno-pointer-to-int-cast -pedantic -D_POSIX_C_SOURCE=200809L -I$(INCDIR) -I/usr/local/ssl/include -I/opt/local/include @COMPILE_CONFIG_FLAGS@ -std=c99 -Werror
+CFLAGS += -Wall -Wno-overflow -Wno-uninitialized -Wno-pointer-to-int-cast -pedantic -D_POSIX_C_SOURCE=200809L -I$(INCDIR) -I/usr/local/ssl/include -I/opt/local/include @COMPILE_CONFIG_FLAGS@ -std=c99 #-Werror
 LFLAGS = -L/opt/local/lib -L/usr/local/ssl/lib
 ifndef OSTYPE
   OSTYPE = $(shell uname -s|awk '{print tolower($$0)}')
@@ -47,7 +47,7 @@ debug-test: test-build
 
 # Build all
 
-all-build: core crypto random network storage file-ec file-no-ec
+all-build: core crypto random storage file-ec file-no-ec # network-goes-here
 
 # Get files for the core library
 
@@ -109,13 +109,13 @@ build/CBRand.o: dependencies/random/CBRand.c
 
 # Network library target linking
 
-network : build/CBLibEventSockets.o | bin
-	$(CC) $(LFLAGS) -o bin/libcbitcoin-network$(LIBRARY_EXTENSION) build/CBLibEventSockets.o -levent_core
+#network : build/CBLibEventSockets.o | bin
+#	$(CC) $(LFLAGS) -o bin/libcbitcoin-network$(LIBRARY_EXTENSION) build/CBLibEventSockets.o -levent_core
 
 # Network library compile
 
-build/CBLibEventSockets.o: dependencies/sockets/CBLibEventSockets.c dependencies/sockets/CBLibEventSockets.h
-	$(CC) -c $(CFLAGS) $(LIBCFLAGS) $< -o $@
+#build/CBLibEventSockets.o: dependencies/sockets/CBLibEventSockets.c dependencies/sockets/CBLibEventSockets.h
+#	$(CC) -c $(CFLAGS) $(LIBCFLAGS) $< -o $@
 
 # File IO library target linking
 
@@ -168,9 +168,9 @@ test-build : all-build $(TEST_BINARIES)
 # REMEMBER to add dependencies after the objects or libraries that depend on them.
 
 $(TEST_BINARIES): bin/%: build/%.o
-	$(CC) $< -L$(BINDIR) -lpthread -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-network.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION)  -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -L/opt/local/lib -levent_core -levent_pthreads -lcrypto -o $@
+	$(CC) $< -L$(BINDIR) -lpthread -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION)  -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -L/opt/local/lib -lcrypto -o $@
 	$@
+#network disabled -levent_core -levent_pthreads
 
 $(TEST_OBJS): build/%.o: test/%.c
 	$(CC) -c $(CFLAGS) -I$(CURDIR)/dependencies/sockets/ -I$(CURDIR)/dependencies/storage $< -o $@
-	
