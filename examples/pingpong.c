@@ -132,6 +132,12 @@ sockread_cb (EV_P_ struct ev_io *w, int revents)
     if (!strncmp(header+CB_MESSAGE_HEADER_TYPE, "pong\0\0\0\0\0\0\0\0", 12)) {
         printf("received pong header\n");
     }
+    if (!strncmp(header+CB_MESSAGE_HEADER_TYPE, "inv\0\0\0\0\0\0\0\0\0", 12)) {
+        printf("received inv header\n");
+    }
+    if (!strncmp(header+CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
+        printf("received addr header\n");
+    }
 
     // Clean up
     free(payload);
