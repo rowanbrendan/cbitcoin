@@ -67,9 +67,9 @@ send_version()
     memcpy(header + CB_MESSAGE_HEADER_TYPE, "version\0\0\0\0\0", 12);
 
     /* Compute length, serialized, and checksum */
-    uint32_t len = CBVersionCalculateLength(CBGetVersion(message));
+    uint32_t len = CBVersionCalculateLength(version);
     message->bytes = CBNewByteArrayOfSize(len);
-    len = CBVersionSerialise(CBGetVersion(message), false);
+    len = CBVersionSerialise(version, false);
     if (message->bytes) {
         // Make checksum
         uint8_t hash[32];
