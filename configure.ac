@@ -4,7 +4,6 @@ AC_CONFIG_SRCDIR([dependencies/crypto/CBOpenSSLCrypto.c])
 
 # Search for OpenSSL and LibEvent.
 AC_SEARCH_LIBS([SHA1], [crypto], [], [echo Default dependencies cannot be installed.])
-AC_SEARCH_LIBS([event_new], [event], [], [echo Default dependencies cannot be installed.])
 
 # Checks for standard header files.
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h unistd.h stdbool.h], [], [AC_MSG_ERROR([Cannot configure core library])])
