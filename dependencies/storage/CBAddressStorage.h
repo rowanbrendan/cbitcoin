@@ -29,7 +29,7 @@
 #define CBADDRESSSTORAGEH
 
 #include "CBDatabase.h"
-#include "CBAddressManager.h"
+#include "CBNetworkAddress.h"
 
 typedef struct{
 	CBDatabase base;

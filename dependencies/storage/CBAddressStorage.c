@@ -94,6 +94,8 @@ bool CBAddressStorageDeleteAddress(uint64_t iself, void * address){
 uint64_t CBAddressStorageGetNumberOfAddresses(uint64_t iself){
 	return ((CBAddressStore *)iself)->numAddresses;
 }
+
+/*
 bool CBAddressStorageLoadAddresses(uint64_t iself, void * addrMan){
 	CBDatabase * database = (CBDatabase *)iself;
 	CBAddressManager * addrManObj = addrMan;
@@ -137,6 +139,8 @@ bool CBAddressStorageLoadAddresses(uint64_t iself, void * addrMan){
 	}
 	return true;
 }
+*/
+
 bool CBAddressStorageSaveAddress(uint64_t iself, void * address){
 	CBAddressStore * self = (CBAddressStore *)iself;
 	CBNetworkAddress * addrObj = address;
