@@ -188,7 +188,7 @@ examples-build : all-build $(EXAMPLES_BINARIES)
 # REMEMBER to add dependencies after the objects or libraries that depend on them.
 
 $(EXAMPLES_BINARIES): bin/%: build/%.o
-	$(CC) $< -L$(BINDIR) -lpthread -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION)  -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -lcrypto -lev -g -o $@
+	$(CC) $< -L$(BINDIR) $(LFLAGS) -lpthread -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION)  -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -lcrypto -lev -g -o $@
 #	$@
 
 $(EXAMPLES_OBJS): build/%.o: examples/%.c
