@@ -103,6 +103,14 @@ bool CBInitBlockFromData(CBBlock * self, CBByteArray * data);
 bool CBInitBlockGenesis(CBBlock * self);
 
 /**
+ @brief Initialises a CBBlock object with the genesis information for the UMDNet block chain. This will have serialised data as well as object data.
+ @param self The CBBlock object to initialise.
+ @param data Serialised block data.
+ @returns A new CBBlock object.
+ */
+bool CBInitBlockGenesisUMDNet(CBBlock * self);
+
+/**
  @brief Frees a CBBlock object.
  @param self The CBBlock object to free.
  */
