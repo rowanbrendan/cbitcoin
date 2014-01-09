@@ -1,8 +1,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+
+#include "BRSelector.h"
 
 #define DELIMS " "
 
@@ -66,12 +69,16 @@ static void listen() {
 }
 
 static void connect() {
-
+    char *ip = strtok(NULL, DELIMS);
+    char *port = strtok(NULL, DELIMS);
+    if (ip != NULL && port != NULL) {
+        
+    } else
+        printf("usage: connect <ip> <port>\n");
 }
 
-int main() {
-    char *line;
-    while (line = readline("$ ")) {
+void handle_line(char *line) {
+    if (line != NULL) {
         char *tok = strtok(line, DELIMS);
         if (tok != NULL) {
             Command *c = find_command(tok);
@@ -79,11 +86,26 @@ int main() {
                 c->callback();
             else
                 printf("Command not found: %s\n", tok);
+
+            add_history(line);
         }
 
-        if (line != NULL && *line != '\0')
-            add_history(line);
         free(line);
     }
+}
+
+/* rl_callback_read_char doesn't have the right type */
+void readline_callback(void *arg) {
+    rl_callback_read_char();
+}
+
+int main() {
+    BRSelector *s = BRNewSelector();
+
+    /* allow readline to work with select */
+    rl_callback_handler_install("$ ", handle_line);
+    BRAddSelectable(s, STDIN_FILENO, readline_callback, NULL, 0);
+
+    BRLoop(s);
     return 0;
 }
