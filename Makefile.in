@@ -2,9 +2,14 @@
 
 INCDIR = $(CURDIR)/include
 BINDIR = $(CURDIR)/bin
-CFLAGS += -fPIC -g -Wall  -Wno-uninitialized -Wno-pointer-to-int-cast -pedantic -D_POSIX_C_SOURCE=200809L -I$(INCDIR) -I/afs/csic.umd.edu/class/cmsc417/0101/cs417050/lex_libev/include -I/afs/csic.umd.edu/class/cmsc417/0101/cs417050/myopenssl/include -I/opt/local/include @COMPILE_CONFIG_FLAGS@ -std=c99 #-Werror
-LFLAGS = -L/opt/local/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/myopenssl/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/lex_libev/lib
-LFLAGS_EXE = -L/opt/local/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/myopenssl/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/lex_libev/lib
+
+#CFLAGS += -fPIC -g -Wall  -Wno-uninitialized -Wno-pointer-to-int-cast -pedantic -D_POSIX_C_SOURCE=200809L -I$(INCDIR) -I/afs/csic.umd.edu/class/cmsc417/0101/cs417050/lex_libev/include -I/afs/csic.umd.edu/class/cmsc417/0101/cs417050/myopenssl/include -I/opt/local/include @COMPILE_CONFIG_FLAGS@ -std=c99 #-Werror
+#LFLAGS = -L/opt/local/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/myopenssl/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/lex_libev/lib
+#LFLAGS_EXE = -L/opt/local/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/myopenssl/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/lex_libev/lib
+
+CFLAGS += -fPIC -g -Wall  -Wno-uninitialized -Wno-pointer-to-int-cast -pedantic -D_POSIX_C_SOURCE=200809L -I$(INCDIR) -I/opt/local/include @COMPILE_CONFIG_FLAGS@ -std=c99 #-Werror
+LFLAGS = -L/opt/local/lib
+LFLAGS_EXE = -L/opt/local/lib
 
 ifndef OSTYPE
   OSTYPE = $(shell uname -s|awk '{print tolower($$0)}')
@@ -49,7 +54,7 @@ debug-test: test-build
 
 # Build all
 
-all-build: core crypto random storage file-ec file-no-ec # network-goes-here
+all-build: core crypto random storage file-ec file-no-ec networking
 
 # Get files for the core library
 
@@ -188,6 +193,9 @@ EXAMPLES_OBJS = $(patsubst examples/%.c, build/%.o, $(EXAMPLES_FILES))
 examples-build : all-build $(EXAMPLES_BINARIES)
 
 # REMEMBER to add dependencies after the objects or libraries that depend on them.
+
+networking: $(CORE_OBJS)
+	$(CC) -L$(BINDIR) -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION) -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -lcrypto -lreadline -g -o bin/BRBitcoin
 
 $(EXAMPLES_BINARIES): bin/%: build/%.o
 	$(CC) $< -L$(BINDIR) $(LFLAGS_EXE) -lpthread -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION)  -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -lcrypto  -lev -g -o $@
