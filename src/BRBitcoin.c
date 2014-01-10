@@ -2,12 +2,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
 #include "BRSelector.h"
+#include "BRConnection.h"
+#include "BRConnector.h"
 
 #define DELIMS " "
+
+BRConnector *connector;
 
 /* Command notation adapted from http://sunsite.ualberta.ca/Documentation/Gnu/readline-4.1/html_node/readline_45.html */
 
@@ -65,21 +70,36 @@ static void quit() {
 }
 
 static void listen() {
+    char *ip = strtok(NULL, DELIMS);
+    char *port = strtok(NULL, DELIMS);
+    int nport = atoi(port == NULL ? "" : port);
 
+    if (ip != NULL && port != NULL) {
+        connector = BRNewConnector(ip, nport);
+        printf("Listening at %s on port %d\n", ip, nport);
+    } else
+        printf("usage: listen <ip> <port>\n");
 }
 
 static void connect() {
     char *ip = strtok(NULL, DELIMS);
     char *port = strtok(NULL, DELIMS);
-    if (ip != NULL && port != NULL) {
-        
+    int nport = atoi(port == NULL ? "" : port);
+
+    if (connector == NULL) {
+        printf("Before connecting, start listening first\n");
+    } else if (ip != NULL && port != NULL) {
+        BRAddConnection(connector, ip, nport);
+        printf("Connected to %s on port %d\n", ip, nport);
     } else
         printf("usage: connect <ip> <port>\n");
 }
 
 void handle_line(char *line) {
     if (line != NULL) {
-        char *tok = strtok(line, DELIMS);
+        char *cpy = calloc(1, strlen(line) + 1), *tok;
+        strcpy(cpy, line);
+        tok = strtok(line, DELIMS);
         if (tok != NULL) {
             Command *c = find_command(tok);
             if (c != NULL)
@@ -87,7 +107,7 @@ void handle_line(char *line) {
             else
                 printf("Command not found: %s\n", tok);
 
-            add_history(line);
+            add_history(cpy);
         }
 
         free(line);
@@ -100,6 +120,8 @@ void readline_callback(void *arg) {
 }
 
 int main() {
+    srand(time(NULL));
+
     BRSelector *s = BRNewSelector();
 
     /* allow readline to work with select */
