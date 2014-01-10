@@ -6,12 +6,14 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+#include "BRCommon.h"
 #include "BRSelector.h"
 #include "BRConnection.h"
 #include "BRConnector.h"
 
 #define DELIMS " "
 
+BRSelector *selector;
 BRConnector *connector;
 
 /* Command notation adapted from http://sunsite.ualberta.ca/Documentation/Gnu/readline-4.1/html_node/readline_45.html */
@@ -75,7 +77,7 @@ static void listen() {
     int nport = atoi(port == NULL ? "" : port);
 
     if (ip != NULL && port != NULL) {
-        connector = BRNewConnector(ip, nport);
+        connector = BRNewConnector(ip, nport, selector);
         printf("Listening at %s on port %d\n", ip, nport);
     } else
         printf("usage: listen <ip> <port>\n");
@@ -122,12 +124,12 @@ void readline_callback(void *arg) {
 int main() {
     srand(time(NULL));
 
-    BRSelector *s = BRNewSelector();
+    selector = BRNewSelector();
 
     /* allow readline to work with select */
     rl_callback_handler_install("$ ", handle_line);
-    BRAddSelectable(s, STDIN_FILENO, readline_callback, NULL, 0);
+    BRAddSelectable(selector, STDIN_FILENO, readline_callback, NULL, 0);
 
-    BRLoop(s);
+    BRLoop(selector);
     return 0;
 }

@@ -51,7 +51,13 @@ static void print_hex(CBByteArray *str) {
     uint8_t *ptr = str->sharedData->data;
     for (; i < str->length; i++) printf("%02x", ptr[str->offset + i]);
     printf("\n");
+}static void print_header(char h[24]) {
+    int i = 0;
+    for (; i < 24; ++i) printf("%02x ", h[i]);
+    printf("\n");
 }
+
+
 
 
 static void
@@ -91,6 +97,7 @@ send_version()
     send(sd, header, 24, 0);
     
     // Send the message
+    print_header(header);
     printf("message len: %d\n", message->bytes->length);
     printf("checksum: %x\n", *((uint32_t *) message->checksum));
     send(sd, message->bytes->sharedData->data+message->bytes->offset, message->bytes->length, 0);

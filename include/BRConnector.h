@@ -3,6 +3,7 @@
 
 #include "CBNetworkAddress.h"
 
+#include "BRSelector.h"
 #include "BRConnection.h"
 
 typedef struct {
@@ -10,9 +11,10 @@ typedef struct {
     BRConnection **conns;
     int sock;
     CBNetworkAddress *my_address;
+    BRSelector *selector;
 } BRConnector;
 
-BRConnector *BRNewConnector(char *, int);
+BRConnector *BRNewConnector(char *, int, BRSelector *);
 void BRAddConnection(BRConnector *, char *, int);
 
 #endif

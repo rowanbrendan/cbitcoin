@@ -9,5 +9,6 @@ typedef struct {
 } BRConnection;
 
 BRConnection *BRNewConnection(char *, int, CBNetworkAddress *);
+void BRPeerCallback(void *);
 
 #endif

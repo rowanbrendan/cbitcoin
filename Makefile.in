@@ -198,7 +198,7 @@ networking: $(CORE_OBJS)
 	$(CC) -L$(BINDIR) -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION) -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -lcrypto -lreadline -g -o bin/BRBitcoin
 
 $(EXAMPLES_BINARIES): bin/%: build/%.o
-	$(CC) $< -L$(BINDIR) $(LFLAGS_EXE) -lpthread -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION)  -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -lcrypto  -lev -g -o $@
+	$(CC) $< -L$(BINDIR) $(LFLAGS_EXE) -lreadline -lpthread -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-crypto.$(LIBRARY_VERSION) -lcbitcoin-storage.$(LIBRARY_VERSION)  -lcbitcoin.$(LIBRARY_VERSION) -lcbitcoin-file-ec.$(LIBRARY_VERSION) -lcbitcoin-rand.$(LIBRARY_VERSION) -lcrypto  -lev -g -o $@
 
 #	$@
 

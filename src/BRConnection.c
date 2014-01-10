@@ -12,6 +12,7 @@
 #include "CBVersion.h"
 #include "CBNetworkAddress.h"
 
+#include "BRCommon.h"
 #include "BRConnection.h"
 
 /* Adapted from examples/pingpong.c */
@@ -78,7 +79,6 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
     return c;
 }
 
-
 /* TODO get rid of this */
 static void print_hex(CBByteArray *str) {
     int i = 0;
@@ -90,6 +90,67 @@ static void print_header(char h[24]) {
     int i = 0;
     for (; i < 24; ++i) printf("%02x ", h[i]);
     printf("\n");
+}
+
+
+void BRPeerCallback(void *arg) {
+    BRConnection *c = (BRConnection *) arg;
+    char header[24];
+
+    int bytes = recv(c->sock, header, 24, 0), n;
+    if (bytes < 0) {
+        perror("recv failed");
+        exit(1);
+    } else if (bytes == 0) {
+        /* TODO closed connection */
+        fprintf(stderr, "Connection closed on socket %d\n", c->sock);
+        exit(1);
+    } else if (bytes != 24) {
+        fprintf(stderr, "Read %d bytes, not 24\n", bytes);
+        exit(1);
+    }
+
+    /* check magic */
+    uint32_t magic = *(uint32_t *)(header + CB_MESSAGE_HEADER_NETWORK_ID);
+    if (magic != NETMAGIC) {
+        fprintf(stderr, "Netmagic %u incorrect (isn't %u)\n", magic, NETMAGIC);
+        exit(1);
+    }
+
+    /* read message */
+    uint32_t length = *(uint32_t *)(header + CB_MESSAGE_HEADER_LENGTH);
+    char *message = malloc(length);
+    if (message == NULL) {
+        perror("malloc failed");
+        exit(1);
+    }
+    bytes = 0;
+    while (bytes < length) {
+        n = recv(c->sock, message + bytes, length - bytes, 0);
+        if (n < 0) {
+            perror("recv failed");
+            exit(1);
+        } else if (n == 0) {
+            fprintf(stderr, "Connection closed on socket %d\n", c->sock);
+            exit(1);
+        }
+
+        bytes += n;
+    }
+    if (bytes != length) {
+        fprintf(stderr, "Too many bytes read (%d, not %d)\n", bytes, length);
+        exit(1);
+    }
+
+    /* TODO delegate message to proper handler */
+#ifdef BRDEBUG
+    print_header(header);
+    printf("message len: %d\n", length);
+    CBByteArray *ba = CBNewByteArrayWithDataCopy((uint8_t *) message, length);
+    print_hex(ba);
+    CBFreeByteArray(ba);
+#endif
+    free(message);
 }
 
 
@@ -115,16 +176,34 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
         CBInt32ToArray(header, CB_MESSAGE_HEADER_LENGTH, message->bytes->length);
     memcpy(header + CB_MESSAGE_HEADER_CHECKSUM, message->checksum, 4);
 
-    send(c->sock, header, 24, 0);
-    if (message->bytes)
-        send(c->sock, message->bytes->sharedData->data + message->bytes->offset,
-                message->bytes->length, 0);
+    int sent = send(c->sock, header, 24, 0);
+    if (sent < 0) {
+        perror("send failed");
+        exit(1);
+    }
+    if (sent != 24) {
+        fprintf(stderr, "send sent %d, not 24 bytes\n", sent);
+        exit(1);
+    }
+    if (message->bytes) {
+        sent = send(c->sock, message->bytes->sharedData->data + message->bytes->offset,
+                    message->bytes->length, 0);
+        if (sent < 0) {
+            perror("send failed");
+            exit(1);
+        }
+        if (sent != message->bytes->length) {
+            fprintf(stderr, "send sent %d, not %d bytes\n", sent, message->bytes->length);
+            exit(1);
+        }
+    }
 
-    /* TODO get rid of this */
+#ifdef BRDEBUG
     print_header(header);
     printf("message len: %d\n", message->bytes->length);
     printf("checksum: %x\n", *((uint32_t *) message->checksum));
     print_hex(message->bytes);
+#endif
 }
 
 void BRSendVersion(BRConnection *c) {
@@ -133,9 +212,12 @@ void BRSendVersion(BRConnection *c) {
     CBVersionServices services = CB_SERVICE_FULL_BLOCKS;
     int64_t t = time(NULL);
     CBNetworkAddress *r_addr = c->address;
-    CBNetworkAddress *s_addr = c->my_address;
+/*    CBNetworkAddress *s_addr = c->my_address; */
+    CBByteArray *ip = CBNewByteArrayWithDataCopy((uint8_t[16]) {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 127, 0, 0, 1}, 16);
+    CBNetworkAddress *s_addr = CBNewNetworkAddress(0, ip, 0, CB_SERVICE_FULL_BLOCKS, false);
     uint64_t nonce = rand();
-    CBByteArray *ua = CBNewByteArrayFromString("br_cmsc417_v0.1", false);
+    //CBByteArray *ua = CBNewByteArrayFromString("br_cmsc417_v0.1", false);
+    CBByteArray *ua = CBNewByteArrayFromString("cmsc417versiona", false);
     int32_t block_height = 0; /* TODO get real number */
 
     CBVersion *v = CBNewVersion(version, services, t, r_addr, s_addr,

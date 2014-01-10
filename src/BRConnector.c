@@ -8,6 +8,8 @@
 #include <arpa/inet.h>
 #include <time.h>
 
+#include "BRCommon.h"
+#include "BRSelector.h"
 #include "BRConnector.h"
 #include "BRConnection.h"
 
@@ -15,7 +17,7 @@
 
 /* networking adapted from TCP/IP Sockets in C, Second Edition */
 
-BRConnector *BRNewConnector(char *ip, int port) {
+BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
     struct sockaddr_in addr;
     BRConnector *c = calloc(1, sizeof(BRConnector));
     if (c == NULL) {
@@ -43,6 +45,7 @@ BRConnector *BRNewConnector(char *ip, int port) {
     }
 
     /* TODO bind listener for selector */
+    c->selector = s;
 
     if (ip != NULL) {
         uint64_t last_seen = time(NULL);
@@ -74,6 +77,7 @@ void BRAddConnection(BRConnector *c, char *ip, int port) {
     c->conns[c->num_conns - 1] = conn;
 
     /* TODO add to selector */
+    BRAddSelectable(c->selector, c->sock, BRPeerCallback, c, 0);
 
     BRSendVersion(conn);
 }
