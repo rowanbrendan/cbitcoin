@@ -39,7 +39,7 @@ void BRAddSelectable(BRSelector *s, int fd, void (*callback)(void *),
     s->callbacks[s->num_calls - 1].last = 0;
     s->callbacks[s->num_calls - 1].interval = interval;
 
-#ifdef BRDEBUG
+#ifdef BRDEBUG_SELECT
     printf("Added selectable for socket %d at interval %d\n", fd, interval);
 #endif
 }
@@ -70,7 +70,7 @@ void BRLoop(BRSelector *s) {
         fd_set fds;
 
         FD_ZERO(&fds);
-#ifdef BRDEBUG
+#ifdef BRDEBUG_SELECT
         printf("Checking...");
 #endif
         for (i = 0; i < s->num_calls; ++i) {
@@ -79,7 +79,7 @@ void BRLoop(BRSelector *s) {
                 FD_SET(fd, &fds);
                 if (fd > n)
                     n = fd;
-#ifdef BRDEBUG
+#ifdef BRDEBUG_SELECT
                 printf("socket %d...", s->callbacks[i].fd);
 #endif
             }
@@ -92,7 +92,7 @@ void BRLoop(BRSelector *s) {
         i = select(n + 1, &fds, NULL, NULL, &t);
         /* i = select(n + 1, &fds, NULL, NULL, NULL); */
         
-#ifdef BRDEBUG
+#ifdef BRDEBUG_SELECT
         printf("%d sockets ready\n", i);
 #endif
 
@@ -111,7 +111,7 @@ void BRLoop(BRSelector *s) {
         }
 
         /* Check timed callbacks */
-#ifdef BRDEBUG
+#ifdef BRDEBUG_SELECT
         printf("Checking timed callbacks\n");
 #endif
         for (i = 0; i < s->num_calls; ++i) {

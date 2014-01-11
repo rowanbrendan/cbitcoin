@@ -44,7 +44,11 @@ BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
         exit(1);
     }
 
+    /* TODO bind ping listener */
+    /* ping each peer every 60 seconds */
+    BRAddSelectable(s, 0, BRPingCallback, c, 60);
     /* TODO bind listener for selector */
+    BRAddSelectable(s, c->sock, BRListenerCallback, NULL, 0);
     c->selector = s;
 
     if (ip != NULL) {
@@ -76,8 +80,18 @@ void BRAddConnection(BRConnector *c, char *ip, int port) {
     }
     c->conns[c->num_conns - 1] = conn;
 
-    /* TODO add to selector */
     BRAddSelectable(c->selector, conn->sock, BRPeerCallback, conn, 0);
 
     BRSendVersion(conn);
+}
+
+void BRListenerCallback(void *arg) {
+    printf("Someone wants to connect!\n");
+}
+
+void BRPingCallback(void *arg) {
+    BRConnector *c = (BRConnector *) arg;
+    int i;
+    for (i = 0; i < c->num_conns; ++i)
+        BRSendPing(c->conns[i]);
 }

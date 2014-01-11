@@ -84,7 +84,7 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
 /* TODO get rid of this */
 static void print_hex(CBByteArray *str) {
     int i = 0;
-    if (str == NULL) return;
+    if (str == NULL || str->length == 0) return;
     uint8_t *ptr = str->sharedData->data;
     for (; i < str->length; i++) printf("%02x", ptr[str->offset + i]);
     printf("\n");
@@ -147,32 +147,34 @@ void BRPeerCallback(void *arg) {
         exit(1);
     }
 
+    /* Generate CBByteArray of message for use in certain protocol commands */
+    CBByteArray *ba = CBNewByteArrayWithDataCopy((uint8_t *) message, length);
 #ifdef BRDEBUG
     print_header(header);
     printf("message len: %d\n", length);
-    CBByteArray *ba = CBNewByteArrayWithDataCopy((uint8_t *) message, length);
     print_hex(ba);
-    CBFreeByteArray(ba);
 #endif
 
     /* TODO verify checksum? */
 
     /* TODO delegate message to proper handler */
     if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "version\0\0\0\0\0", 12)) {
-        printf("received version header\n");
+        printf("Received version header\n\n");
         BRSendVerack(c);
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "verack\0\0\0\0\0\0", 12)) {
-        printf("received verack header\n");
+        printf("Received verack header\n\n");
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "ping\0\0\0\0\0\0\0\0", 12)) {
-        printf("received ping header\n");
+        printf("Received ping header\n\n");
+        BRSendPong(c, ba, length);
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "pong\0\0\0\0\0\0\0\0", 12)) {
-        printf("received pong header\n");
+        printf("Received pong header\n\n");
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "inv\0\0\0\0\0\0\0\0\0", 12)) {
-        printf("received inv header\n");
+        printf("Received inv header\n\n");
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
-        printf("received addr header\n");
+        printf("Received addr header\n\n");
     }
 
+    CBFreeByteArray(ba);
     free(message);
 }
 
@@ -183,16 +185,19 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
     
     memcpy(header + CB_MESSAGE_HEADER_TYPE, command, strlen(command));
     
-    if (message->bytes) {
-        uint8_t hash[32];
-        uint8_t hash2[32];
+    uint8_t hash[32];
+    uint8_t hash2[32];
+    if (message->bytes)
         CBSha256(CBByteArrayGetData(message->bytes), message->bytes->length, hash);
-        CBSha256(hash, 32, hash2);
-        message->checksum[0] = hash2[0];
-        message->checksum[1] = hash2[1];
-        message->checksum[2] = hash2[2];
-        message->checksum[3] = hash2[3];
+    else {
+        /* Get the checksum right */
+        CBSha256(NULL, 0, hash);
     }
+    CBSha256(hash, 32, hash2);
+    message->checksum[0] = hash2[0];
+    message->checksum[1] = hash2[1];
+    message->checksum[2] = hash2[2];
+    message->checksum[3] = hash2[3];
 
     CBInt32ToArray(header, CB_MESSAGE_HEADER_NETWORK_ID, NETMAGIC);
     if (message->bytes) {
@@ -227,10 +232,38 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
     printf("message len: %d\n", message->bytes ? message->bytes->length : 0);
     printf("checksum: %x\n", *((uint32_t *) message->checksum));
     print_hex(message->bytes);
+    printf("\n");
 #endif
 }
 
+void BRSendPing(BRConnection *c) {
+    printf("Sending ping\n");
+    
+    CBMessage *m = CBNewMessageByObject();
+    uint64_t nonce = rand();
+    CBByteArray *ba = CBNewByteArrayWithDataCopy((uint8_t *) &nonce, 8);
+    CBInitMessageByData(m, ba);
+
+    BRSendMessage(c, m, "ping");
+
+    CBFreeByteArray(ba);
+    CBFreeMessage(m);
+}
+
+void BRSendPong(BRConnection *c, CBByteArray *nonce, uint32_t length) {
+    if (length != 8) {
+        fprintf(stderr, "Ping nonce size %d not 8\n", length);
+        exit(1);
+    }
+    printf("Sending pong reply\n");
+    CBMessage *m = CBNewMessageByObject();
+    CBInitMessageByData(m, nonce);
+    BRSendMessage(c, m, "pong");
+    CBFreeMessage(m);
+}
+
 void BRSendVerack(BRConnection *c) {
+    printf("Sending verack reply\n");
     CBMessage *m = CBNewMessageByObject();
     BRSendMessage(c, m, "verack");
     CBFreeMessage(m);

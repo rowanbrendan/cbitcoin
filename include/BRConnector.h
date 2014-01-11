@@ -16,5 +16,7 @@ typedef struct {
 
 BRConnector *BRNewConnector(char *, int, BRSelector *);
 void BRAddConnection(BRConnector *, char *, int);
+void BRListenerCallback(void *);
+void BRPingCallback(void *);
 
 #endif
