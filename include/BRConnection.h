@@ -13,5 +13,6 @@ void BRPeerCallback(void *);
 void BRSendVersion(BRConnection *);
 void BRSendVerack(BRConnection *);
 void BRSendPong(BRConnection *, CBByteArray *, uint32_t);
+void BRSendGetAddr(BRConnection *);
 
 #endif

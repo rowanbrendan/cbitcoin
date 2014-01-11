@@ -163,11 +163,13 @@ void BRPeerCallback(void *arg) {
         BRSendVerack(c);
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "verack\0\0\0\0\0\0", 12)) {
         printf("Received verack header\n\n");
+        BRSendGetAddr(c);
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "ping\0\0\0\0\0\0\0\0", 12)) {
         printf("Received ping header\n\n");
         BRSendPong(c, ba, length);
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "pong\0\0\0\0\0\0\0\0", 12)) {
         printf("Received pong header\n\n");
+        /* TODO verify nonce */
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "inv\0\0\0\0\0\0\0\0\0", 12)) {
         printf("Received inv header\n\n");
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
@@ -234,6 +236,13 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
     print_hex(message->bytes);
     printf("\n");
 #endif
+}
+
+void BRSendGetAddr(BRConnection *c) {
+    printf("Sending getaddr\n");
+    CBMessage *m = CBNewMessageByObject();
+    BRSendMessage(c, m, "getaddr");
+    CBFreeMessage(m);
 }
 
 void BRSendPing(BRConnection *c) {
