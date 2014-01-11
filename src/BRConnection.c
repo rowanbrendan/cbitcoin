@@ -37,8 +37,7 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
         exit(1);
     }
 
-    //c->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    c->sock = socket(PF_INET, SOCK_STREAM, 0);
+    c->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (c->sock < 0) {
         perror("socket failed");
         exit(1);
@@ -70,10 +69,7 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
                             octets[0], octets[1], octets[2], octets[3]};
         CBByteArray *ip_arr = CBNewByteArrayWithDataCopy(ipmap, 16);
         CBVersionServices services = CB_SERVICE_FULL_BLOCKS;
-        bool is_public = false;
-
-
-        last_seen = 0;
+        bool is_public = true;
 
         printf("port: %d\n", port);
         c->address = CBNewNetworkAddress(last_seen,
@@ -99,6 +95,7 @@ static void print_header(char h[24]) {
 
 
 void BRPeerCallback(void *arg) {
+    /* adapted from pingpong.c example */
     BRConnection *c = (BRConnection *) arg;
     char header[24];
 
@@ -147,7 +144,23 @@ void BRPeerCallback(void *arg) {
         exit(1);
     }
 
+    /* TODO verify checksum? */
+
     /* TODO delegate message to proper handler */
+    if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "version\0\0\0\0\0", 12)) {
+        printf("received version header\n");
+    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "verack\0\0\0\0\0\0", 12)) {
+        printf("received verack header\n");
+    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "ping\0\0\0\0\0\0\0\0", 12)) {
+        printf("received ping header\n");
+    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "pong\0\0\0\0\0\0\0\0", 12)) {
+        printf("received pong header\n");
+    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "inv\0\0\0\0\0\0\0\0\0", 12)) {
+        printf("received inv header\n");
+    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
+        printf("received addr header\n");
+    }
+
 #ifdef BRDEBUG
     print_header(header);
     printf("message len: %d\n", length);
@@ -155,6 +168,7 @@ void BRPeerCallback(void *arg) {
     print_hex(ba);
     CBFreeByteArray(ba);
 #endif
+
     free(message);
 }
 
@@ -210,13 +224,7 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
     printf("checksum: %x\n", *((uint32_t *) message->checksum));
     print_hex(message->bytes);
 #endif
-    char header2[24] = {0};
-    int b = recv(c->sock, header2, 24, 0);
-    printf("%d bytes received from sock %d\n", b, c->sock);
-    print_header(header2);
 }
-
-#include "CBPeer.h"
 
 void BRSendVersion(BRConnection *c) {
     /* current version number according to http://bitcoin.stackexchange.com/questions/13537/how-do-i-find-out-what-the-latest-protocol-version-is */
@@ -224,16 +232,12 @@ void BRSendVersion(BRConnection *c) {
     CBVersionServices services = CB_SERVICE_FULL_BLOCKS;
     int64_t t = time(NULL);
     CBNetworkAddress *r_addr = c->address;
-    CBPeer *peer = CBNewPeerByTakingNetworkAddress(r_addr);
-/*    CBNetworkAddress *s_addr = c->my_address; */
-    CBByteArray *ip = CBNewByteArrayWithDataCopy((uint8_t[16]) {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 127, 0, 0, 1}, 16);
-    CBNetworkAddress *s_addr = CBNewNetworkAddress(0, ip, 0, CB_SERVICE_FULL_BLOCKS, false);
+    CBNetworkAddress *s_addr = c->my_address;
     uint64_t nonce = rand();
-    //CBByteArray *ua = CBNewByteArrayFromString("br_cmsc417_v0.1", false);
-    CBByteArray *ua = CBNewByteArrayFromString("cmsc417versiona", '\00');
+    CBByteArray *ua = CBNewByteArrayFromString("br_cmsc417_v0.1", false);
     int32_t block_height = 0; /* TODO get real number */
 
-    CBVersion *v = CBNewVersion(version, services, t, &peer->base, s_addr,
+    CBVersion *v = CBNewVersion(version, services, t, r_addr, s_addr,
             nonce, ua, block_height);
     uint32_t length = CBVersionCalculateLength(v);
     v->base.bytes = CBNewByteArrayOfSize(length);
@@ -243,16 +247,3 @@ void BRSendVersion(BRConnection *c) {
 
     CBFreeVersion(v);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
