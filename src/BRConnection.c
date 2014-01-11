@@ -11,6 +11,8 @@
 #include "CBMessage.h"
 #include "CBVersion.h"
 #include "CBNetworkAddress.h"
+#include "CBByteArray.h"
+#include "CBAddressBroadcast.h"
 
 #include "BRCommon.h"
 #include "BRConnection.h"
@@ -174,6 +176,7 @@ void BRPeerCallback(void *arg) {
         printf("Received inv header\n\n");
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
         printf("Received addr header\n\n");
+        BRHandleAddr(c, ba);
     }
 
     CBFreeByteArray(ba);
@@ -243,6 +246,27 @@ void BRSendGetAddr(BRConnection *c) {
     CBMessage *m = CBNewMessageByObject();
     BRSendMessage(c, m, "getaddr");
     CBFreeMessage(m);
+}
+
+void BRHandleAddr(BRConnection *c, CBByteArray *message) {
+    CBAddressBroadcast *b = CBNewAddressBroadcastFromData(message, true);
+    CBAddressBroadcastDeserialise(b);
+
+    int i;
+    for (i = 0; i < b->addrNum; ++i) {
+        CBByteArray *ba = b->addresses[i]->ip;
+        uint8_t *addr = CBByteArrayGetData(ba);
+
+        if (addr[10] == 0xFF && addr[11] == 0xFF) {
+            printf("Found address %d.%d.%d.%d on port %hd\n",
+                    addr[12], addr[13], addr[14], addr[15], b->addresses[i]->port);
+        } else {
+            fprintf(stderr, "Real IPv6 addresses not supported\n");
+            exit(1);
+        }
+    }
+
+    CBFreeAddressBroadcast(b);
 }
 
 void BRSendPing(BRConnection *c) {

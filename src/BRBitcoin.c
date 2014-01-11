@@ -5,6 +5,7 @@
 #include <time.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <stdarg.h>
 
 #include "BRCommon.h"
 #include "BRSelector.h"
@@ -119,6 +120,14 @@ void handle_line(char *line) {
 /* rl_callback_read_char doesn't have the right type */
 void readline_callback(void *arg) {
     rl_callback_read_char();
+}
+
+/* adapted from http://stackoverflow.com/questions/41400/how-to-wrap-a-function-with-variable-length-arguments */
+void CBLogError(char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
 }
 
 int main() {

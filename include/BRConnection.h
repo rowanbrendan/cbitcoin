@@ -1,6 +1,7 @@
 #ifndef BRCONNECTION_H_
 #define BRCONNECTION_H_
 
+#include "CBByteArray.h"
 #include "CBNetworkAddress.h"
 
 typedef struct {
@@ -14,5 +15,6 @@ void BRSendVersion(BRConnection *);
 void BRSendVerack(BRConnection *);
 void BRSendPong(BRConnection *, CBByteArray *, uint32_t);
 void BRSendGetAddr(BRConnection *);
+void BRHandleAddr(BRConnection *, CBByteArray *);
 
 #endif
