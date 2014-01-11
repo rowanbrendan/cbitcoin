@@ -80,9 +80,11 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
     return c;
 }
 
+#ifdef BRDEBUG
 /* TODO get rid of this */
 static void print_hex(CBByteArray *str) {
     int i = 0;
+    if (str == NULL) return;
     uint8_t *ptr = str->sharedData->data;
     for (; i < str->length; i++) printf("%02x", ptr[str->offset + i]);
     printf("\n");
@@ -92,6 +94,7 @@ static void print_header(char h[24]) {
     for (; i < 24; ++i) printf("%02x ", h[i]);
     printf("\n");
 }
+#endif
 
 
 void BRPeerCallback(void *arg) {
@@ -144,11 +147,20 @@ void BRPeerCallback(void *arg) {
         exit(1);
     }
 
+#ifdef BRDEBUG
+    print_header(header);
+    printf("message len: %d\n", length);
+    CBByteArray *ba = CBNewByteArrayWithDataCopy((uint8_t *) message, length);
+    print_hex(ba);
+    CBFreeByteArray(ba);
+#endif
+
     /* TODO verify checksum? */
 
     /* TODO delegate message to proper handler */
     if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "version\0\0\0\0\0", 12)) {
         printf("received version header\n");
+        BRSendVerack(c);
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "verack\0\0\0\0\0\0", 12)) {
         printf("received verack header\n");
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "ping\0\0\0\0\0\0\0\0", 12)) {
@@ -160,14 +172,6 @@ void BRPeerCallback(void *arg) {
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
         printf("received addr header\n");
     }
-
-#ifdef BRDEBUG
-    print_header(header);
-    printf("message len: %d\n", length);
-    CBByteArray *ba = CBNewByteArrayWithDataCopy((uint8_t *) message, length);
-    print_hex(ba);
-    CBFreeByteArray(ba);
-#endif
 
     free(message);
 }
@@ -220,10 +224,16 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
 
 #ifdef BRDEBUG
     print_header(header);
-    printf("message len: %d\n", message->bytes->length);
+    printf("message len: %d\n", message->bytes ? message->bytes->length : 0);
     printf("checksum: %x\n", *((uint32_t *) message->checksum));
     print_hex(message->bytes);
 #endif
+}
+
+void BRSendVerack(BRConnection *c) {
+    CBMessage *m = CBNewMessageByObject();
+    BRSendMessage(c, m, "verack");
+    CBFreeMessage(m);
 }
 
 void BRSendVersion(BRConnection *c) {
