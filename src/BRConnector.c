@@ -77,7 +77,7 @@ void BRAddConnection(BRConnector *c, char *ip, int port) {
     c->conns[c->num_conns - 1] = conn;
 
     /* TODO add to selector */
-    BRAddSelectable(c->selector, c->sock, BRPeerCallback, c, 0);
+    BRAddSelectable(c->selector, conn->sock, BRPeerCallback, conn, 0);
 
     BRSendVersion(conn);
 }

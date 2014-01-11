@@ -37,7 +37,8 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
         exit(1);
     }
 
-    c->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    //c->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    c->sock = socket(PF_INET, SOCK_STREAM, 0);
     if (c->sock < 0) {
         perror("socket failed");
         exit(1);
@@ -69,8 +70,12 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
                             octets[0], octets[1], octets[2], octets[3]};
         CBByteArray *ip_arr = CBNewByteArrayWithDataCopy(ipmap, 16);
         CBVersionServices services = CB_SERVICE_FULL_BLOCKS;
-        bool is_public = true;
+        bool is_public = false;
 
+
+        last_seen = 0;
+
+        printf("port: %d\n", port);
         c->address = CBNewNetworkAddress(last_seen,
                                         ip_arr, port, services, is_public);
         c->my_address = my_address;
@@ -172,8 +177,9 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
     }
 
     CBInt32ToArray(header, CB_MESSAGE_HEADER_NETWORK_ID, NETMAGIC);
-    if (message->bytes)
+    if (message->bytes) {
         CBInt32ToArray(header, CB_MESSAGE_HEADER_LENGTH, message->bytes->length);
+    }
     memcpy(header + CB_MESSAGE_HEADER_CHECKSUM, message->checksum, 4);
 
     int sent = send(c->sock, header, 24, 0);
@@ -204,7 +210,13 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
     printf("checksum: %x\n", *((uint32_t *) message->checksum));
     print_hex(message->bytes);
 #endif
+    char header2[24] = {0};
+    int b = recv(c->sock, header2, 24, 0);
+    printf("%d bytes received from sock %d\n", b, c->sock);
+    print_header(header2);
 }
+
+#include "CBPeer.h"
 
 void BRSendVersion(BRConnection *c) {
     /* current version number according to http://bitcoin.stackexchange.com/questions/13537/how-do-i-find-out-what-the-latest-protocol-version-is */
@@ -212,15 +224,16 @@ void BRSendVersion(BRConnection *c) {
     CBVersionServices services = CB_SERVICE_FULL_BLOCKS;
     int64_t t = time(NULL);
     CBNetworkAddress *r_addr = c->address;
+    CBPeer *peer = CBNewPeerByTakingNetworkAddress(r_addr);
 /*    CBNetworkAddress *s_addr = c->my_address; */
     CBByteArray *ip = CBNewByteArrayWithDataCopy((uint8_t[16]) {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 127, 0, 0, 1}, 16);
     CBNetworkAddress *s_addr = CBNewNetworkAddress(0, ip, 0, CB_SERVICE_FULL_BLOCKS, false);
     uint64_t nonce = rand();
     //CBByteArray *ua = CBNewByteArrayFromString("br_cmsc417_v0.1", false);
-    CBByteArray *ua = CBNewByteArrayFromString("cmsc417versiona", false);
+    CBByteArray *ua = CBNewByteArrayFromString("cmsc417versiona", '\00');
     int32_t block_height = 0; /* TODO get real number */
 
-    CBVersion *v = CBNewVersion(version, services, t, r_addr, s_addr,
+    CBVersion *v = CBNewVersion(version, services, t, &peer->base, s_addr,
             nonce, ua, block_height);
     uint32_t length = CBVersionCalculateLength(v);
     v->base.bytes = CBNewByteArrayOfSize(length);

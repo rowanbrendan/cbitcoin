@@ -31,7 +31,7 @@ void BRAddSelectable(BRSelector *s, int fd, void (*callback)(void *),
     }
 
     /* TODO set to nonblocking */
-//    fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | O_NONBLOCK);
+    fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | O_NONBLOCK);
 
     s->callbacks[s->num_calls - 1].fd = fd;
     s->callbacks[s->num_calls - 1].callback = callback;
@@ -63,24 +63,31 @@ void BRRemoveSelectable(BRSelector *s, int fd) {
     }
 }
 
+#include <poll.h>
 void BRLoop(BRSelector *s) {
     while (1) {
         struct timeval t;
         int n = 0, i, fd;
-        fd_set fds;
+        //fd_set fds;
 
-        FD_ZERO(&fds);
+        //FD_ZERO(&fds);
 #ifdef BRDEBUG
         printf("Checking...");
 #endif
+        struct pollfd *fds = malloc(s->num_calls * sizeof(struct pollfd));
         for (i = 0; i < s->num_calls; ++i) {
             if (s->callbacks[i].interval == 0) {
+                fds[n].fd = s->callbacks[i].fd;
+                fds[n].events = POLLIN;
+                ++n;
+                /*
                 fd = s->callbacks[i].fd;
                 FD_SET(fd, &fds);
                 if (fd > n)
                     n = fd;
+                    */
 #ifdef BRDEBUG
-                printf("socket %d...", fd);
+                printf("socket %d...", s->callbacks[i].fd);
 #endif
             }
         }
@@ -89,8 +96,9 @@ void BRLoop(BRSelector *s) {
         /* TODO timeout? */
         t.tv_sec = 1; /* don't let select wait on input for too long */
         t.tv_usec = 0;
-        i = select(n + 1, &fds, NULL, NULL, &t);
+        //i = select(n + 1, &fds, NULL, NULL, &t);
         /* i = select(n + 1, &fds, NULL, NULL, NULL); */
+        i = poll(fds, n, 3000);
         
 #ifdef BRDEBUG
         printf("%d sockets ready\n", i);
@@ -99,16 +107,33 @@ void BRLoop(BRSelector *s) {
         if (i < 0) {
             perror("select failed");
             exit(1);
-        } else if (i > 0) {
+        //} else if (i > 0) {
+        } else {
+            int j = 0;
             for (i = 0; i < s->num_calls; ++i) {
                 if (s->callbacks[i].interval == 0) {
                     fd = s->callbacks[i].fd;
+                    if (fd == fds[j].fd) {
+                        if (fds[j].revents == POLLIN)
+                            BRTrigger(&s->callbacks[i]);
+                        else {
+                            printf("Socket %d revents: %hd\n", fd, fds[j].revents);
+                            char buf[11] = {0};
+                            int bbb = recv(fd, buf, 10, 0);
+                            printf("Got %d: %s\n", bbb, buf);
+                        }
+                        j++;
+                    }
+                    /*
                     if (FD_ISSET(fd, &fds)) {
                         BRTrigger(&s->callbacks[i]);
                     }
+                    */
                 }
             }
         }
+
+        free(fds);
 
         /* Check timed callbacks */
 #ifdef BRDEBUG
