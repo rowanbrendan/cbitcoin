@@ -8,6 +8,10 @@
 #include <arpa/inet.h>
 #include <time.h>
 
+#include "CBObject.h"
+#include "CBNetworkAddress.h"
+#include "CBByteArray.h"
+
 #include "BRCommon.h"
 #include "BRSelector.h"
 #include "BRConnector.h"
@@ -65,6 +69,8 @@ BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
 
         c->my_address = CBNewNetworkAddress(last_seen,
                                         ip_arr, port, services, is_public);
+
+        CBReleaseObject(ip_arr);
     }
 
     return c;
@@ -90,8 +96,10 @@ void BRListenerCallback(void *arg) {
 }
 
 void BRPingCallback(void *arg) {
+    /* called when it's time to ping again */
     BRConnector *c = (BRConnector *) arg;
     int i;
     for (i = 0; i < c->num_conns; ++i)
         BRSendPing(c->conns[i]);
 }
+

@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 
+#include "CBObject.h"
 #include "CBMessage.h"
 #include "CBVersion.h"
 #include "CBNetworkAddress.h"
@@ -77,6 +78,9 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
         c->address = CBNewNetworkAddress(last_seen,
                                         ip_arr, port, services, is_public);
         c->my_address = my_address;
+
+        /* decrement reference counter */
+        CBReleaseObject(ip_arr);
     }
 
     return c;
@@ -133,6 +137,7 @@ void BRPeerCallback(void *arg) {
     }
     bytes = 0;
     while (bytes < length) {
+        /* TODO don't read message all at once if not ready */
         n = recv(c->sock, message + bytes, length - bytes, 0);
         if (n < 0) {
             perror("recv failed");
@@ -179,7 +184,8 @@ void BRPeerCallback(void *arg) {
         BRHandleAddr(c, ba);
     }
 
-    CBFreeByteArray(ba);
+    /* reference counter should be 0 now */
+    CBReleaseObject(ba);
     free(message);
 }
 
@@ -195,7 +201,8 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
     if (message->bytes)
         CBSha256(CBByteArrayGetData(message->bytes), message->bytes->length, hash);
     else {
-        /* Get the checksum right */
+        /* Get the checksum right -- handles problem where checksum not calculated
+         * for messages with no payload */
         CBSha256(NULL, 0, hash);
     }
     CBSha256(hash, 32, hash2);
@@ -279,7 +286,7 @@ void BRSendPing(BRConnection *c) {
 
     BRSendMessage(c, m, "ping");
 
-    CBFreeByteArray(ba);
+    CBReleaseObject(ba);
     CBFreeMessage(m);
 }
 
@@ -321,5 +328,8 @@ void BRSendVersion(BRConnection *c) {
 
     BRSendMessage(c, &v->base, "version");
 
+    /* don't release remote and local addresses just yet.
+     * need them for other messages */
+    CBReleaseObject(ua);
     CBFreeVersion(v);
 }

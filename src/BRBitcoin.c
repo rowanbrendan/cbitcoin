@@ -77,7 +77,9 @@ static void listen() {
     char *port = strtok(NULL, DELIMS);
     int nport = atoi(port == NULL ? "" : port);
 
-    if (ip != NULL && port != NULL) {
+    if (connector != NULL) {
+        printf("listen can only be used once\n");
+    } else if (ip != NULL && port != NULL) {
         connector = BRNewConnector(ip, nport, selector);
         printf("Listening at %s on port %d\n", ip, nport);
     } else
@@ -112,7 +114,8 @@ void handle_line(char *line) {
 
             add_history(cpy);
         }
-
+        
+        free(cpy);
         free(line);
     }
 }
