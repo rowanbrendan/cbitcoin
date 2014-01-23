@@ -29,6 +29,7 @@ static void command_error(char *);
 static Command *find_command(const char *);
 static void help();
 static void connect();
+static void connections();
 static void listen();
 static void quit();
 
@@ -37,6 +38,7 @@ static Command commands[] = {
     {"quit", quit, "Exits the Bitcoin client"},
     {"listen", listen, "Starts listening for messages on an address and port"},
     {"connect", connect, "Connects to a given address and port"},
+    {"connections", connections, "Lists all open and opening connections"},
     {NULL, NULL, NULL}
 };
 
@@ -94,10 +96,27 @@ static void connect() {
     if (connector == NULL) {
         printf("Before connecting, start listening first\n");
     } else if (ip != NULL && port != NULL) {
-        BRAddConnection(connector, ip, nport);
-        printf("Connected to %s on port %d\n", ip, nport);
+        BROpenConnection(connector, ip, (uint16_t) nport);
+        printf("Connecting to %s on port %hu\n", ip, (uint16_t) nport);
+        /* TODO print message when connected */
     } else
         printf("usage: connect <ip> <port>\n");
+}
+
+static void connections() {
+    int i;
+    if (connector->num_conns)
+        printf("Opened connections:\n");
+    for (i = 0; i < connector->num_conns; ++i) {
+        BRConnection *c = connector->conns[i];
+        printf("\t%s:%hu on socket %d\n", c->ip, c->port, c->sock);
+    }
+    if (connector->num_ho)
+        printf("Opening connections:\n");
+    for (i = 0; i < connector->num_ho; ++i) {
+        BRConnection *c = connector->half_open_conns[i];
+        printf("\t%s:%hu on socket %d\n", c->ip, c->port, c->sock);
+    }
 }
 
 void handle_line(char *line) {
@@ -140,7 +159,7 @@ int main() {
 
     /* allow readline to work with select */
     rl_callback_handler_install("$ ", handle_line);
-    BRAddSelectable(selector, STDIN_FILENO, readline_callback, NULL, 0);
+    BRAddSelectable(selector, STDIN_FILENO, readline_callback, NULL, 0, FOR_READING);
 
     BRLoop(selector);
     return 0;

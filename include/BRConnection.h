@@ -7,9 +7,14 @@
 typedef struct {
     int sock;
     CBNetworkAddress *address, *my_address;
+    char *ip; /* dynamically allocated */
+    uint16_t port;
+    long flags;
+    void *connector; /* BRConnector pointer */
 } BRConnection;
 
-BRConnection *BRNewConnection(char *, int, CBNetworkAddress *);
+BRConnection *BRNewConnection(char *, uint16_t, CBNetworkAddress *, void *);
+void BRCloseConnection(BRConnection *);
 void BRPeerCallback(void *);
 void BRSendVersion(BRConnection *);
 void BRSendVerack(BRConnection *);

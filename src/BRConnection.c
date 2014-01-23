@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include <errno.h>
 
 #include "CBObject.h"
 #include "CBMessage.h"
@@ -17,6 +19,7 @@
 
 #include "BRCommon.h"
 #include "BRConnection.h"
+#include "BRConnector.h"
 
 /* Adapted from examples/pingpong.c */
 
@@ -31,7 +34,8 @@ typedef enum {
 
 /* networking adapted from TCP/IP Sockets in C, Second Edition */
 
-BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) {
+BRConnection *BRNewConnection(char *ip, uint16_t port,
+        CBNetworkAddress *my_address, void *connector) {
     int rtn;
     struct sockaddr_in remote;
     BRConnection *c = malloc(sizeof(BRConnection));
@@ -45,6 +49,13 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
         perror("socket failed");
         exit(1);
     }
+    /* set to non-blocking, saving flags */
+    c->flags = fcntl(c->sock, F_GETFL);
+    if (fcntl(c->sock, F_SETFL, c->flags | O_NONBLOCK) == -1) {
+        perror("fcntl failed");
+        exit(1);
+    }
+
     memset(&remote, 0, sizeof(remote));
     remote.sin_family = AF_INET;
     rtn = inet_pton(AF_INET, ip, &remote.sin_addr.s_addr);
@@ -58,8 +69,14 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
     
     if (connect(c->sock, (struct sockaddr *) &remote,
                 sizeof(remote)) < 0) {
-        perror("connect failed");
-        exit(1);
+        if (errno == EINPROGRESS) {
+#ifdef BRDEBUG
+            printf("Connection to %s:%d on socket %d in progress\n", ip, port, c->sock);
+#endif
+        } else {
+            perror("connect failed");
+            exit(1);
+        }
     }
 
     if (ip != NULL) {
@@ -81,9 +98,30 @@ BRConnection *BRNewConnection(char *ip, int port, CBNetworkAddress *my_address) 
 
         /* decrement reference counter */
         CBReleaseObject(ip_arr);
-    }
 
+        /* copy ip and port */
+        c->port = port;
+        c->ip = calloc(1, strlen(ip) + 1);
+        if (c->ip == NULL) {
+            perror("calloc failed");
+            exit(1);
+        }
+        strcpy(c->ip, ip);
+    }
+    c->connector = connector; /* In reality is a (BRConnector *) */
     return c;
+}
+
+void BRCloseConnection(BRConnection *conn) {
+    /* remove from connector */
+    BRConnector *connector = (BRConnector *) conn->connector;
+    BRRemoveConnection(connector, conn);
+
+    /* free object */
+    free(conn->ip);
+    CBReleaseObject(conn->address); /* should free all associated data */
+    close(conn->sock);
+    free(conn);
 }
 
 #ifdef BRDEBUG
@@ -265,8 +303,19 @@ void BRHandleAddr(BRConnection *c, CBByteArray *message) {
         uint8_t *addr = CBByteArrayGetData(ba);
 
         if (addr[10] == 0xFF && addr[11] == 0xFF) {
-            printf("Found address %d.%d.%d.%d on port %hd\n",
-                    addr[12], addr[13], addr[14], addr[15], b->addresses[i]->port);
+            /* octets:      255   .  255  .  255  .  255  \0 */
+            char *ip = malloc(3 + 1 + 3 + 1 + 3 + 1 + 3 + 1);
+            if (ip == NULL) {
+                perror("malloc failed");
+                exit(1);
+            }
+            sprintf(ip, "%d.%d.%d.%d", addr[12], addr[13], addr[14], addr[15]);
+            printf("Found address %s on port %hu\n", ip, b->addresses[i]->port);
+
+            BRConnector *connector = (BRConnector *) c->connector;
+            BROpenConnection(connector, ip, b->addresses[i]->port);
+
+            free(ip);
         } else {
             fprintf(stderr, "Real IPv6 addresses not supported\n");
             exit(1);

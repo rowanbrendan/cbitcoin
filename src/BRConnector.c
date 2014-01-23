@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -17,6 +18,7 @@
 #include "BRConnector.h"
 #include "BRConnection.h"
 
+#define MAXPEERS 500
 #define MAXPENDING 100
 
 /* networking adapted from TCP/IP Sockets in C, Second Edition */
@@ -50,9 +52,9 @@ BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
 
     /* TODO bind ping listener */
     /* ping each peer every 60 seconds */
-    BRAddSelectable(s, 0, BRPingCallback, c, 60);
+    BRAddSelectable(s, 0, BRPingCallback, c, 60, FOR_TIMING);
     /* TODO bind listener for selector */
-    BRAddSelectable(s, c->sock, BRListenerCallback, NULL, 0);
+    BRAddSelectable(s, c->sock, BRListenerCallback, NULL, 0, FOR_READING);
     c->selector = s;
 
     if (ip != NULL) {
@@ -69,6 +71,13 @@ BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
 
         c->my_address = CBNewNetworkAddress(last_seen,
                                         ip_arr, port, services, is_public);
+        c->my_port = port;
+        c->my_ip = calloc(1, strlen(ip) + 1);
+        if (c->my_ip == NULL) {
+            perror("calloc failed");
+            exit(1);
+        }
+        strcpy(c->my_ip, ip);
 
         CBReleaseObject(ip_arr);
     }
@@ -76,8 +85,55 @@ BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
     return c;
 }
 
-void BRAddConnection(BRConnector *c, char *ip, int port) {
-    BRConnection *conn = BRNewConnection(ip, port, c->my_address);
+void BROpenConnection(BRConnector *c, char *ip, uint16_t port) {
+    /* check number of connections */
+    if (c->num_conns + c->num_ho >= MAXPEERS)
+        return;
+
+    /* check unique connection */
+    int i;
+    if (strcmp(c->my_ip, ip) == 0 && c->my_port == port) /* don't connect to me */
+        return;
+    for (i = 0; i < c->num_conns; ++i)
+        if (strcmp(c->conns[i]->ip, ip) == 0 && c->conns[i]->port == port)
+            return;
+    for (i = 0; i < c->num_ho; ++i)
+        if (strcmp(c->half_open_conns[i]->ip, ip) == 0 &&
+                c->half_open_conns[i]->port == port)
+            return;
+
+    BRConnection *conn = BRNewConnection(ip, port, c->my_address, c);
+    ++c->num_ho;
+    c->half_open_conns = realloc(c->half_open_conns, c->num_ho * sizeof(BRConnection *));
+    if (c->half_open_conns == NULL) {
+        perror("realloc failed");
+        exit(1);
+    }
+    c->half_open_conns[c->num_ho - 1] = conn;
+
+    /* wait for connection to fully open */
+    BRAddSelectable(c->selector, conn->sock, BRConnectedCallback, conn, 0, FOR_WRITING);
+}
+
+static void BRAddOpenedConnection(BRConnector *, BRConnection *);
+static void BRRemoveOpenedConnection(BRConnector *, BRConnection *);
+static void BRRemoveHalfOpenConnection(BRConnector *, BRConnection *);
+
+void BRConnectedCallback(void *arg) {
+    BRConnection *conn = (BRConnection *) arg;
+    BRConnector *c = (BRConnector *) conn->connector;
+
+    printf("Connected to %s on port %hu\n", conn->ip, conn->port);
+    BRAddOpenedConnection(c, conn);
+}
+
+static void BRAddOpenedConnection(BRConnector *c, BRConnection *conn) {
+    BRSelector *s = c->selector;
+
+    /* remove from writing selectables */
+    BRRemoveSelectable(s, conn->sock);
+
+    /* add to opened connections */
     ++c->num_conns;
     c->conns = realloc(c->conns, c->num_conns * sizeof(BRConnection *));
     if (c->conns == NULL) {
@@ -86,9 +142,59 @@ void BRAddConnection(BRConnector *c, char *ip, int port) {
     }
     c->conns[c->num_conns - 1] = conn;
 
-    BRAddSelectable(c->selector, conn->sock, BRPeerCallback, conn, 0);
+    BRRemoveHalfOpenConnection(c, conn);
 
+    /* reset original flags */
+    if (fcntl(conn->sock, F_SETFL, conn->flags) == -1) {
+        perror("fcntl failed");
+        exit(1);
+    }
+    /* add to selector and send version */
+    BRAddSelectable(c->selector, conn->sock, BRPeerCallback, conn, 0, FOR_READING);
     BRSendVersion(conn);
+}
+
+/* removes connection conn out of both connection lists */
+void BRRemoveConnection(BRConnector *c, BRConnection *conn) {
+    BRRemoveOpenedConnection(c, conn);
+    BRRemoveHalfOpenConnection(c, conn);
+}
+
+static void BRRemoveOpenedConnection(BRConnector *c, BRConnection *conn) {
+    /* remove from opened connections */
+    int i;
+    for (i = 0; i < c->num_conns; ++i) {
+        if (c->conns[i] == conn) {
+            memmove(&c->conns[i], &c->conns[i + 1],
+                    sizeof(BRConnection *) * (c->num_conns - i - 1));
+            --c->num_conns;
+            c->conns = realloc(c->conns, c->num_conns * sizeof(BRConnection *));
+            if (c->num_conns != 0 && c->conns == NULL) {
+                perror("realloc failed");
+                exit(1);
+            }
+            break;
+        }
+    }
+}
+
+static void BRRemoveHalfOpenConnection(BRConnector *c, BRConnection *conn) {
+    /* remove from half opened connections */
+    int i;
+    for (i = 0; i < c->num_ho; ++i) {
+        if (c->half_open_conns[i] == conn) {
+            memmove(&c->half_open_conns[i], &c->half_open_conns[i + 1],
+                    sizeof(BRConnection *) * (c->num_ho - i - 1));
+            --c->num_ho;
+            c->half_open_conns = realloc(c->half_open_conns,
+                                    c->num_ho * sizeof(BRConnection *));
+            if (c->num_ho != 0 && c->half_open_conns == NULL) {
+                perror("realloc failed");
+                exit(1);
+            }
+            break;
+        }
+    }
 }
 
 void BRListenerCallback(void *arg) {
