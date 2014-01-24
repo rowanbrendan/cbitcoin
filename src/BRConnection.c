@@ -34,8 +34,10 @@ typedef enum {
 
 /* networking adapted from TCP/IP Sockets in C, Second Edition */
 
+/*  socket_fd < 0 implies we need to use non-blocking connect
+ * socket_fd >= 0 implies socket already bound to connection */
 BRConnection *BRNewConnection(char *ip, uint16_t port,
-        CBNetworkAddress *my_address, void *connector) {
+        CBNetworkAddress *my_address, void *connector, int socket_fd) {
     int rtn;
     struct sockaddr_in remote;
     BRConnection *c = malloc(sizeof(BRConnection));
@@ -44,38 +46,43 @@ BRConnection *BRNewConnection(char *ip, uint16_t port,
         exit(1);
     }
 
-    c->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (c->sock < 0) {
-        perror("socket failed");
-        exit(1);
-    }
-    /* set to non-blocking, saving flags */
-    c->flags = fcntl(c->sock, F_GETFL);
-    if (fcntl(c->sock, F_SETFL, c->flags | O_NONBLOCK) == -1) {
-        perror("fcntl failed");
-        exit(1);
-    }
-
-    memset(&remote, 0, sizeof(remote));
-    remote.sin_family = AF_INET;
-    rtn = inet_pton(AF_INET, ip, &remote.sin_addr.s_addr);
-    if (rtn == 0)
-        fprintf(stderr, "Address %s not valid\n", ip);
-    else if (rtn < 0) {
-        perror("inet_pton failed");
-        exit(1);
-    }
-    remote.sin_port = htons(port);
-    
-    if (connect(c->sock, (struct sockaddr *) &remote,
-                sizeof(remote)) < 0) {
-        if (errno == EINPROGRESS) {
-#ifdef BRDEBUG
-            printf("Connection to %s:%d on socket %d in progress\n", ip, port, c->sock);
-#endif
-        } else {
-            perror("connect failed");
+    if (socket_fd >= 0) {
+        c->sock = socket_fd;
+        c->flags = fcntl(c->sock, F_GETFL);
+    } else {
+        c->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (c->sock < 0) {
+            perror("socket failed");
             exit(1);
+        }
+        /* set to non-blocking, saving flags */
+        c->flags = fcntl(c->sock, F_GETFL);
+        if (fcntl(c->sock, F_SETFL, c->flags | O_NONBLOCK) == -1) {
+            perror("fcntl failed");
+            exit(1);
+        }
+
+        memset(&remote, 0, sizeof(remote));
+        remote.sin_family = AF_INET;
+        rtn = inet_pton(AF_INET, ip, &remote.sin_addr.s_addr);
+        if (rtn == 0)
+            fprintf(stderr, "Address %s not valid\n", ip);
+        else if (rtn < 0) {
+            perror("inet_pton failed");
+            exit(1);
+        }
+        remote.sin_port = htons(port);
+        
+        if (connect(c->sock, (struct sockaddr *) &remote,
+                    sizeof(remote)) < 0) {
+            if (errno == EINPROGRESS) {
+#ifdef BRDEBUG
+                printf("Connection to %s:%d on socket %d in progress\n", ip, port, c->sock);
+#endif
+            } else {
+                perror("connect failed");
+                exit(1);
+            }
         }
     }
 
@@ -108,6 +115,7 @@ BRConnection *BRNewConnection(char *ip, uint16_t port,
         }
         strcpy(c->ip, ip);
     }
+
     c->connector = connector; /* In reality is a (BRConnector *) */
     return c;
 }
@@ -116,6 +124,9 @@ void BRCloseConnection(BRConnection *conn) {
     /* remove from connector */
     BRConnector *connector = (BRConnector *) conn->connector;
     BRRemoveConnection(connector, conn);
+
+    /* remove from selector */
+    BRRemoveSelectable(connector->selector, conn->sock);
 
     /* free object */
     free(conn->ip);
@@ -153,7 +164,8 @@ void BRPeerCallback(void *arg) {
     } else if (bytes == 0) {
         /* TODO closed connection */
         fprintf(stderr, "Connection closed on socket %d\n", c->sock);
-        exit(1);
+        BRCloseConnection(c);
+        return;
     } else if (bytes != 24) {
         fprintf(stderr, "Read %d bytes, not 24\n", bytes);
         exit(1);
@@ -182,7 +194,8 @@ void BRPeerCallback(void *arg) {
             exit(1);
         } else if (n == 0) {
             fprintf(stderr, "Connection closed on socket %d\n", c->sock);
-            exit(1);
+            BRCloseConnection(c);
+            return;
         }
 
         bytes += n;
@@ -220,6 +233,9 @@ void BRPeerCallback(void *arg) {
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
         printf("Received addr header\n\n");
         BRHandleAddr(c, ba);
+    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "getaddr\0\0\0\0\0", 12)) {
+        printf("Received getaddr header\n\n");
+        BRSendAddr(c);
     }
 
     /* reference counter should be 0 now */
@@ -325,6 +341,22 @@ void BRHandleAddr(BRConnection *c, CBByteArray *message) {
     CBFreeAddressBroadcast(b);
 }
 
+void BRSendAddr(BRConnection *c) {
+    BRConnector *connector = (BRConnector *) c->connector;
+    CBAddressBroadcast *b = CBNewAddressBroadcast(true);
+    
+    int i;
+    for (i = 0; i < connector->num_conns; ++i)
+        CBAddressBroadcastAddNetworkAddress(b, connector->conns[i]->address);
+
+    uint32_t length = CBAddressBroadcastCalculateLength(b);
+    b->base.bytes = CBNewByteArrayOfSize(length);
+    CBAddressBroadcastSerialise(b, false);
+    BRSendMessage(c, &b->base, "addr");
+
+    CBFreeAddressBroadcast(b);
+}
+
 void BRSendPing(BRConnection *c) {
     printf("Sending ping\n");
     
@@ -382,3 +414,4 @@ void BRSendVersion(BRConnection *c) {
     CBReleaseObject(ua);
     CBFreeVersion(v);
 }
+

@@ -54,7 +54,7 @@ BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
     /* ping each peer every 60 seconds */
     BRAddSelectable(s, 0, BRPingCallback, c, 60, FOR_TIMING);
     /* TODO bind listener for selector */
-    BRAddSelectable(s, c->sock, BRListenerCallback, NULL, 0, FOR_READING);
+    BRAddSelectable(s, c->sock, BRListenerCallback, c, 0, FOR_READING);
     c->selector = s;
 
     if (ip != NULL) {
@@ -102,7 +102,7 @@ void BROpenConnection(BRConnector *c, char *ip, uint16_t port) {
                 c->half_open_conns[i]->port == port)
             return;
 
-    BRConnection *conn = BRNewConnection(ip, port, c->my_address, c);
+    BRConnection *conn = BRNewConnection(ip, port, c->my_address, c, -1);
     ++c->num_ho;
     c->half_open_conns = realloc(c->half_open_conns, c->num_ho * sizeof(BRConnection *));
     if (c->half_open_conns == NULL) {
@@ -198,7 +198,24 @@ static void BRRemoveHalfOpenConnection(BRConnector *c, BRConnection *conn) {
 }
 
 void BRListenerCallback(void *arg) {
-    printf("Someone wants to connect!\n");
+    /* partially adapted from http://www.gnu.org/software/libc/manual/html_node/Server-Example.html */
+    BRConnector *c = (BRConnector *) arg; /* argument is connector */
+    struct sockaddr_in client;
+    size_t size = sizeof(client);
+
+    int new = accept(c->sock, (struct sockaddr *) &client, &size);
+    if (new < 0) {
+        perror("accept failed");
+        exit(1);
+    }
+
+    /* TODO probably using ephemeral ports, not the advertised port */
+    printf("Accepted connection from %s:%hu on socket %d\n",
+            inet_ntoa(client.sin_addr), ntohs(client.sin_port), new);
+
+    BRConnection *conn = BRNewConnection(inet_ntoa(client.sin_addr),
+                            ntohs(client.sin_port), c->my_address, c, new);
+    BRAddOpenedConnection(c, conn);
 }
 
 void BRPingCallback(void *arg) {

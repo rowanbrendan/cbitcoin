@@ -146,7 +146,6 @@ void BRLoop(BRSelector *s) {
                                         conn->ip, conn->port, fd);
 #endif
                             BRCloseConnection(conn);
-                            BRRemoveSelectable(s, s->callbacks[i].fd);
                         }
                     } else if (s->callbacks[i].type == FOR_READING && FD_ISSET(fd, &fds)) {
                         BRTrigger(&s->callbacks[i]);
@@ -178,7 +177,6 @@ void BRLoop(BRSelector *s) {
                                 conn->ip, conn->port, fd);
 #endif
                     BRCloseConnection(conn);
-                    BRRemoveSelectable(s, s->callbacks[i].fd);
                 }
             }
         }

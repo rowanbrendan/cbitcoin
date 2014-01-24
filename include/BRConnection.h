@@ -13,13 +13,15 @@ typedef struct {
     void *connector; /* BRConnector pointer */
 } BRConnection;
 
-BRConnection *BRNewConnection(char *, uint16_t, CBNetworkAddress *, void *);
+BRConnection *BRNewConnection(char *, uint16_t, CBNetworkAddress *,
+                                void *, int);
 void BRCloseConnection(BRConnection *);
 void BRPeerCallback(void *);
 void BRSendVersion(BRConnection *);
 void BRSendVerack(BRConnection *);
 void BRSendPong(BRConnection *, CBByteArray *, uint32_t);
 void BRSendGetAddr(BRConnection *);
+void BRSendAddr(BRConnection *);
 void BRHandleAddr(BRConnection *, CBByteArray *);
 
 #endif
