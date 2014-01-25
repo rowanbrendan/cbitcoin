@@ -40,9 +40,9 @@ BRConnection *BRNewConnection(char *ip, uint16_t port,
         CBNetworkAddress *my_address, void *connector, int socket_fd) {
     int rtn;
     struct sockaddr_in remote;
-    BRConnection *c = malloc(sizeof(BRConnection));
+    BRConnection *c = calloc(1, sizeof(BRConnection));
     if (c == NULL) {
-        perror("malloc failed");
+        perror("calloc failed");
         exit(1);
     }
 
@@ -116,6 +116,8 @@ BRConnection *BRNewConnection(char *ip, uint16_t port,
         strcpy(c->ip, ip);
     }
 
+    c->ver_acked = c->ver_received = 0;
+    c->addr_sent = c->getblocks_sent = 0;
     c->connector = connector; /* In reality is a (BRConnector *) */
     return c;
 }
@@ -133,6 +135,10 @@ void BRCloseConnection(BRConnection *conn) {
     CBReleaseObject(conn->address); /* should free all associated data */
     close(conn->sock);
     free(conn);
+}
+
+bool BRVersionExchanged(BRConnection *c) {
+    return c->ver_acked && c->ver_received;
 }
 
 #ifdef BRDEBUG
@@ -162,7 +168,6 @@ void BRPeerCallback(void *arg) {
         perror("recv failed");
         exit(1);
     } else if (bytes == 0) {
-        /* TODO closed connection */
         fprintf(stderr, "Connection closed on socket %d\n", c->sock);
         BRCloseConnection(c);
         return;
@@ -215,27 +220,39 @@ void BRPeerCallback(void *arg) {
 
     /* TODO verify checksum? */
 
-    /* TODO delegate message to proper handler */
     if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "version\0\0\0\0\0", 12)) {
         printf("Received version header\n\n");
+        c->ver_received = 1; /* we received their version */
         BRSendVerack(c);
     } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "verack\0\0\0\0\0\0", 12)) {
         printf("Received verack header\n\n");
+        c->ver_acked = 1; /* they've acknowledged our version */
         BRSendGetAddr(c);
-    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "ping\0\0\0\0\0\0\0\0", 12)) {
-        printf("Received ping header\n\n");
-        BRSendPong(c, ba, length);
-    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "pong\0\0\0\0\0\0\0\0", 12)) {
-        printf("Received pong header\n\n");
-        /* TODO verify nonce */
-    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "inv\0\0\0\0\0\0\0\0\0", 12)) {
-        printf("Received inv header\n\n");
-    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
-        printf("Received addr header\n\n");
-        BRHandleAddr(c, ba);
-    } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "getaddr\0\0\0\0\0", 12)) {
-        printf("Received getaddr header\n\n");
-        BRSendAddr(c);
+    }
+    
+    if (BRVersionExchanged(c)) {
+        if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "ping\0\0\0\0\0\0\0\0", 12)) {
+            printf("Received ping header\n\n");
+            BRSendPong(c, ba, length);
+        } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "pong\0\0\0\0\0\0\0\0", 12)) {
+            printf("Received pong header\n\n");
+            /* TODO verify nonce */
+        } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "inv\0\0\0\0\0\0\0\0\0", 12)) {
+            printf("Received inv header\n\n");
+        } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
+            printf("Received addr header\n\n");
+            BRHandleAddr(c, ba);
+        } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "getaddr\0\0\0\0\0", 12)) {
+            printf("Received getaddr header\n\n");
+            BRSendAddr(c);
+        }
+
+        if (!c->addr_sent) {
+            BRSendAddr(c);
+        }
+        if (!c->getblocks_sent) {
+            /* TODO send getblocks */
+        }
     }
 
     /* reference counter should be 0 now */
@@ -348,6 +365,8 @@ void BRSendAddr(BRConnection *c) {
     int i;
     for (i = 0; i < connector->num_conns; ++i)
         CBAddressBroadcastAddNetworkAddress(b, connector->conns[i]->address);
+    /* add mine too */
+    CBAddressBroadcastAddNetworkAddress(b, connector->my_address);
 
     uint32_t length = CBAddressBroadcastCalculateLength(b);
     b->base.bytes = CBNewByteArrayOfSize(length);
@@ -355,6 +374,9 @@ void BRSendAddr(BRConnection *c) {
     BRSendMessage(c, &b->base, "addr");
 
     CBFreeAddressBroadcast(b);
+
+    /* update addr sent */
+    c->addr_sent = 1;
 }
 
 void BRSendPing(BRConnection *c) {

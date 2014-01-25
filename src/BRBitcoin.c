@@ -71,6 +71,7 @@ static void help() {
 }
 
 static void quit() {
+    /* TODO free memory */
     exit(0);
 }
 

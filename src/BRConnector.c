@@ -223,6 +223,7 @@ void BRPingCallback(void *arg) {
     BRConnector *c = (BRConnector *) arg;
     int i;
     for (i = 0; i < c->num_conns; ++i)
-        BRSendPing(c->conns[i]);
+        if (BRVersionExchanged(c->conns[i]))
+            BRSendPing(c->conns[i]);
 }
 

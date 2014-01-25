@@ -9,8 +9,10 @@ typedef struct {
     CBNetworkAddress *address, *my_address;
     char *ip; /* dynamically allocated */
     uint16_t port;
-    long flags;
+    long flags; /* original flags used for socket */
     void *connector; /* BRConnector pointer */
+    char ver_acked, ver_received; /* both need to be true for version exchange */
+    char addr_sent, getblocks_sent;
 } BRConnection;
 
 BRConnection *BRNewConnection(char *, uint16_t, CBNetworkAddress *,
@@ -23,5 +25,6 @@ void BRSendPong(BRConnection *, CBByteArray *, uint32_t);
 void BRSendGetAddr(BRConnection *);
 void BRSendAddr(BRConnection *);
 void BRHandleAddr(BRConnection *, CBByteArray *);
+bool BRVersionExchanged(BRConnection *); /* if ver_sent and ver_received */
 
 #endif
