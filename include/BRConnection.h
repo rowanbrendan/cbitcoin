@@ -24,8 +24,10 @@ void BRSendVerack(BRConnection *);
 void BRSendPing(BRConnection *);
 void BRSendPong(BRConnection *, CBByteArray *, uint32_t);
 void BRSendGetAddr(BRConnection *);
+void BRSendGetBlocks(BRConnection *);
 void BRSendAddr(BRConnection *);
 void BRHandleAddr(BRConnection *, CBByteArray *);
+void BRHandleInv(BRConnection *, CBByteArray *);
 bool BRVersionExchanged(BRConnection *); /* if ver_sent and ver_received */
 
 #endif

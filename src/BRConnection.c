@@ -16,14 +16,18 @@
 #include "CBNetworkAddress.h"
 #include "CBByteArray.h"
 #include "CBAddressBroadcast.h"
+#include "CBChainDescriptor.h"
+#include "CBGetBlocks.h"
 
 #include "BRCommon.h"
 #include "BRConnection.h"
 #include "BRConnector.h"
+#include "BRBlockChain.h"
 
 /* Adapted from examples/pingpong.c */
 
 #define NETMAGIC 0xd0b4bef9 /* umdnet */
+#define VERSION_NUM 70001
 
 typedef enum {
     CB_MESSAGE_HEADER_NETWORK_ID = 0, /**< The network identifier bytes */
@@ -239,6 +243,7 @@ void BRPeerCallback(void *arg) {
             /* TODO verify nonce */
         } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "inv\0\0\0\0\0\0\0\0\0", 12)) {
             printf("Received inv header\n\n");
+            BRHandleInv(c, ba);
         } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
             printf("Received addr header\n\n");
             BRHandleAddr(c, ba);
@@ -251,7 +256,7 @@ void BRPeerCallback(void *arg) {
             BRSendAddr(c);
         }
         if (!c->getblocks_sent) {
-            /* TODO send getblocks */
+            BRSendGetBlocks(c);
         }
     }
 
@@ -319,11 +324,38 @@ void BRSendMessage(BRConnection *c, CBMessage *message, char *command) {
 #endif
 }
 
+void BRSendGetBlocks(BRConnection *c) {
+    BRConnector *connector = (BRConnector *) c->connector;
+    CBChainDescriptor *chain = BRKnownBlocks(connector->block_chain);
+
+    /* 0 to get as many blocks as possible (500) */
+    uint8_t zero[32] = {0};
+    CBByteArray *stop = CBNewByteArrayWithDataCopy(zero, 32);
+
+    CBGetBlocks *get_blocks = CBNewGetBlocks(VERSION_NUM, chain, stop);
+
+    uint32_t length = CBGetBlocksCalculateLength(get_blocks);
+    get_blocks->base.bytes = CBNewByteArrayOfSize(length);
+    CBGetBlocksSerialise(get_blocks, false);
+    BRSendMessage(c, &get_blocks->base, "getblocks");
+
+    CBReleaseObject(stop);
+    CBReleaseObject(chain);
+    CBFreeGetBlocks(get_blocks);
+
+    /* update with sent getblocks */
+    c->getblocks_sent = 1;
+}
+
 void BRSendGetAddr(BRConnection *c) {
     printf("Sending getaddr\n");
     CBMessage *m = CBNewMessageByObject();
     BRSendMessage(c, m, "getaddr");
     CBFreeMessage(m);
+}
+
+void BRHandleInv(BRConnection *c, CBByteArray *message) {
+    /* TODO find blocks that are needed */
 }
 
 void BRHandleAddr(BRConnection *c, CBByteArray *message) {
@@ -414,7 +446,6 @@ void BRSendVerack(BRConnection *c) {
 
 void BRSendVersion(BRConnection *c) {
     /* current version number according to http://bitcoin.stackexchange.com/questions/13537/how-do-i-find-out-what-the-latest-protocol-version-is */
-    int32_t version = 70001;
     CBVersionServices services = CB_SERVICE_FULL_BLOCKS;
     int64_t t = time(NULL);
     CBNetworkAddress *r_addr = c->address;
@@ -423,7 +454,7 @@ void BRSendVersion(BRConnection *c) {
     CBByteArray *ua = CBNewByteArrayFromString("br_cmsc417_v0.1", false);
     int32_t block_height = 0; /* TODO get real number */
 
-    CBVersion *v = CBNewVersion(version, services, t, r_addr, s_addr,
+    CBVersion *v = CBNewVersion(VERSION_NUM, services, t, r_addr, s_addr,
             nonce, ua, block_height);
     uint32_t length = CBVersionCalculateLength(v);
     v->base.bytes = CBNewByteArrayOfSize(length);

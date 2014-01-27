@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "CBFullValidator.h"
+#include "CBChainDescriptor.h"
 
 typedef struct {
     uint64_t storage;
@@ -10,5 +11,6 @@ typedef struct {
 } BRBlockChain;
 
 BRBlockChain *BRNewBlockChain(char *);
+CBChainDescriptor *BRKnownBlocks(BRBlockChain *);
 
 #endif
