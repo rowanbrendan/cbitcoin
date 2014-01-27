@@ -8,6 +8,7 @@
 #include "CBChainDescriptor.h"
 #include "CBBlock.h"
 #include "CBByteArray.h"
+#include "CBObject.h"
 
 #include "BRCommon.h"
 #include "BRBlockChain.h"
@@ -73,4 +74,40 @@ CBChainDescriptor *BRKnownBlocks(BRBlockChain *bc) {
     BRChainDescriptorAddBlockIndex(chain, bc, branch_idx, 0);
 
     return chain;
+}
+
+CBInventoryBroadcast *BRUnknownBlocksFromInv(BRBlockChain *bc, CBInventoryBroadcast *inv) {
+    CBInventoryBroadcast *new_inv = CBNewInventoryBroadcast();
+    int i;
+    for (i = 0; i < inv->itemNum; ++i) {
+        CBInventoryItem *item = inv->items[i];
+#ifdef BRDEBUG
+        char *type = item->type == CB_INVENTORY_ITEM_ERROR ? "ERROR" :
+                    (item->type == CB_INVENTORY_ITEM_BLOCK ? "BLOCK" :
+                                                        "TRANSACTION");
+        printf("Inventory item %d (type %s)\n", i, type);
+#endif
+
+        if (item->type == CB_INVENTORY_ITEM_BLOCK) {
+            if (!CBBlockChainStorageBlockExists(bc->validator, item->hash)) {
+                ++new_inv->itemNum;
+                new_inv->items = (CBInventoryItem **) realloc(new_inv->items,
+                                new_inv->itemNum * sizeof(CBInventoryItem *));
+                if (new_inv->items == NULL) {
+                    perror("realloc failed");
+                    exit(1);
+                }
+
+                /* add inventory item to new_inv */
+                new_inv->items[new_inv->itemNum - 1] = item;
+                CBRetainObject(item);
+            } else {
+ #ifdef BRDEBUG
+                printf("\tBlock exists\n");
+#endif
+            }
+        }
+    }
+
+    return new_inv;
 }

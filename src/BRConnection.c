@@ -16,6 +16,8 @@
 #include "CBNetworkAddress.h"
 #include "CBByteArray.h"
 #include "CBAddressBroadcast.h"
+#include "CBInventoryBroadcast.h"
+#include "CBInventoryItem.h"
 #include "CBChainDescriptor.h"
 #include "CBGetBlocks.h"
 
@@ -243,19 +245,30 @@ void BRPeerCallback(void *arg) {
             /* TODO verify nonce */
         } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "inv\0\0\0\0\0\0\0\0\0", 12)) {
             printf("Received inv header\n\n");
-            BRHandleInv(c, ba);
+            BRHandleInv(c, ba); /* possibly sends a getdata message in response */
         } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "addr\0\0\0\0\0\0\0\0", 12)) {
             printf("Received addr header\n\n");
             BRHandleAddr(c, ba);
         } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "getaddr\0\0\0\0\0", 12)) {
             printf("Received getaddr header\n\n");
             BRSendAddr(c);
+        } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "tx\0\0\0\0\0\0\0\0\0\0", 12)) {
+            printf("Received tx header\n\n");
+            /* TODO handle transaction */
+        } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "block\0\0\0\0\0\0\0", 12)) {
+            printf("Received block header\n\n");
+            /* TODO handle block, call ProcessBlock */
         }
+
+
 
         if (!c->addr_sent) {
             BRSendAddr(c);
         }
         if (!c->getblocks_sent) {
+            /* TODO should wait for blocks instead of spamming getblocks
+             * after every inv received; maybe change it to
+             * blocks_received instead of getblocks_sent */
             BRSendGetBlocks(c);
         }
     }
@@ -354,8 +367,27 @@ void BRSendGetAddr(BRConnection *c) {
     CBFreeMessage(m);
 }
 
+/* sends a getdata if needed */
 void BRHandleInv(BRConnection *c, CBByteArray *message) {
-    /* TODO find blocks that are needed */
+    BRConnector *connector = (BRConnector *) c->connector;
+
+    /* find blocks that are needed */
+    CBInventoryBroadcast *inv = CBNewInventoryBroadcastFromData(message);
+    CBInventoryBroadcastDeserialise(inv);
+
+    CBInventoryBroadcast *new_inv = BRUnknownBlocksFromInv(connector->block_chain, inv);
+    if (new_inv->itemNum > 0) {
+        uint32_t length = CBInventoryBroadcastCalculateLength(new_inv);
+        new_inv->base.bytes = CBNewByteArrayOfSize(length);
+        CBInventoryBroadcastSerialise(new_inv, false);
+        BRSendMessage(c, &new_inv->base, "getdata");
+
+        /* ask for more */
+        c->getblocks_sent = 0;
+    }
+
+    CBFreeInventoryBroadcast(new_inv);
+    CBFreeInventoryBroadcast(inv);
 }
 
 void BRHandleAddr(BRConnection *c, CBByteArray *message) {
