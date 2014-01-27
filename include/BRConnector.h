@@ -5,6 +5,7 @@
 
 #include "BRSelector.h"
 #include "BRConnection.h"
+#include "BRBlockChain.h"
 
 typedef struct {
     int num_conns, num_ho; /* number of open connections and half-open connections */
@@ -15,9 +16,10 @@ typedef struct {
     uint16_t my_port;
     CBNetworkAddress *my_address;
     BRSelector *selector;
+    BRBlockChain *block_chain;
 } BRConnector;
 
-BRConnector *BRNewConnector(char *, int, BRSelector *);
+BRConnector *BRNewConnector(char *, int, BRSelector *, BRBlockChain *);
 void BROpenConnection(BRConnector *, char *, uint16_t);
 void BRRemoveConnection(BRConnector *, BRConnection *);
 void BRListenerCallback(void *);

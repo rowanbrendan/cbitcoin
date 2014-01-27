@@ -7,7 +7,7 @@ BINDIR = $(CURDIR)/bin
 #LFLAGS = -L/opt/local/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/myopenssl/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/lex_libev/lib
 #LFLAGS_EXE = -L/opt/local/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/myopenssl/lib -L/afs/csic.umd.edu/class/cmsc417/0101/cs417050/lex_libev/lib
 
-CFLAGS += -fPIC -g -Wall  -Wno-uninitialized -Wno-pointer-to-int-cast -pedantic -D_BSD_SOURCE -D_POSIX_C_SOURCE=200809L -I$(INCDIR) -I/opt/local/include @COMPILE_CONFIG_FLAGS@ -std=c99 #-Werror
+CFLAGS += -fPIC -g -Wall  -Wno-uninitialized -Wno-pointer-to-int-cast -pedantic -D_BSD_SOURCE -D_POSIX_C_SOURCE=200809L -I$(INCDIR) -I$(CURDIR)/dependencies/storage -I/opt/local/include @COMPILE_CONFIG_FLAGS@ -std=c99 #-Werror
 LFLAGS = -L/opt/local/lib
 LFLAGS_EXE = -L/opt/local/lib
 
@@ -84,7 +84,7 @@ bin:
 
 $(CORE_OBJS): build/%.o: src/%.c | build
 	$(CC) -c $(CFLAGS) $(LIBCFLAGS) $< -o $@
-	$(CC) -I$(INCDIR) -MM $< > build/$*.d
+	$(CC) -I$(INCDIR) -I$(CURDIR)/dependencies/storage -MM $< > build/$*.d
 	@cp build/$*.d build/$*.P
 	@sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < build/$*.P >> build/$*.d;

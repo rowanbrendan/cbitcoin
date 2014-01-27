@@ -23,7 +23,7 @@
 
 /* networking adapted from TCP/IP Sockets in C, Second Edition */
 
-BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
+BRConnector *BRNewConnector(char *ip, int port, BRSelector *s, BRBlockChain *bc) {
     struct sockaddr_in addr;
     BRConnector *c = calloc(1, sizeof(BRConnector));
     if (c == NULL) {
@@ -56,6 +56,7 @@ BRConnector *BRNewConnector(char *ip, int port, BRSelector *s) {
     /* TODO bind listener for selector */
     BRAddSelectable(s, c->sock, BRListenerCallback, c, 0, FOR_READING);
     c->selector = s;
+    c->block_chain = bc;
 
     if (ip != NULL) {
         uint64_t last_seen = time(NULL);

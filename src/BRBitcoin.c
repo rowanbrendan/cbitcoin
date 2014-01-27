@@ -6,16 +6,21 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <stdarg.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
 
 #include "BRCommon.h"
 #include "BRSelector.h"
 #include "BRConnection.h"
 #include "BRConnector.h"
+#include "BRBlockChain.h"
 
 #define DELIMS " "
 
 BRSelector *selector;
 BRConnector *connector;
+BRBlockChain *block_chain;
 
 /* Command notation adapted from http://sunsite.ualberta.ca/Documentation/Gnu/readline-4.1/html_node/readline_45.html */
 
@@ -83,7 +88,7 @@ static void listen() {
     if (connector != NULL) {
         printf("listen can only be used once\n");
     } else if (ip != NULL && port != NULL) {
-        connector = BRNewConnector(ip, nport, selector);
+        connector = BRNewConnector(ip, nport, selector, block_chain);
         printf("Listening at %s on port %d\n", ip, nport);
     } else
         printf("usage: listen <ip> <port>\n");
@@ -153,9 +158,39 @@ void CBLogError(char *fmt, ...) {
     va_end(args);
 }
 
-int main() {
+static char *make_dir(char *orig_dir) {
+    char *dir = calloc(1, strlen(orig_dir) + 2);
+    if (dir == NULL) {
+        perror("calloc failed");
+        exit(1);
+    }
+    
+    strcpy(dir, orig_dir);
+    dir[strlen(orig_dir)] = '/';
+
+    /* mode still restricted by umask */
+    if (mkdir(dir, 0777) != 0 && errno != EEXIST) {
+        perror("mkdir failed");
+        exit(1);
+    }
+    return dir; /* dynamically allocated */
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        char usage[] = "%s block_directory\n\t"
+                        "Starts the bitcoin client with block chain storage "
+                        "in the specified directory\n";
+        printf(usage, argv[0]);
+        exit(2);
+    }
+
     srand(time(NULL));
 
+    /* initialize block chain and selector */
+    char *dir = make_dir(argv[1]);
+    block_chain = BRNewBlockChain(dir);
+    free(dir);
     selector = BRNewSelector();
 
     /* allow readline to work with select */
