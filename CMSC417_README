@@ -1,0 +1,41 @@
+Information:
+        BRBitcoin is a client that provides a portion of the bitcoin protocol
+    for the UMD bitcoin network.  Fully-supported commands include version,
+    verack, ping, pong, addr, and getaddr.  Partially-supported commands
+    include getblocks, inv, getdata, and block (as these commands are
+    implemented one-way rather than two-way; for instance, my client will
+    issue getblocks commands, but doesn't respond to them as a normal client
+    would).
+        Version exchange, ping-pong every minute, an interactive interface,
+    multiple connections, and connection bookkeeping are features of this
+    client.  Blocks can be downloaded through the various protocol messages,
+    but this feature is not guaranteed to be 100% correct.  Mining and DHT
+    was not implemented.
+
+BRBitcoin usage:
+    ./bin/BRBitcoin block_chain_directory
+
+    Run the bitcoin client with a given block chain directory that will be
+    created if not already.
+
+BRBitcoin command usage:
+    help [command]
+
+        Display information about all commands or a given command
+
+    listen ipv4_address port
+
+        Listen on a given IP address and port.  *MUST* be called before
+        any connect call
+
+    connect ipv4_address port
+
+        Connect to a host in the UMD bitcoin network
+
+    connections
+
+        Lists all pending and active connections
+
+    quit
+
+        Exits the client
