@@ -20,6 +20,8 @@
 #include "CBInventoryItem.h"
 #include "CBChainDescriptor.h"
 #include "CBGetBlocks.h"
+#include "CBBlock.h"
+#include "CBFullValidator.h"
 
 #include "BRCommon.h"
 #include "BRConnection.h"
@@ -257,7 +259,7 @@ void BRPeerCallback(void *arg) {
             /* TODO handle transaction */
         } else if (!strncmp(header + CB_MESSAGE_HEADER_TYPE, "block\0\0\0\0\0\0\0", 12)) {
             printf("Received block header\n\n");
-            /* TODO handle block, call ProcessBlock */
+            BRHandleBlock(c, ba);
         }
 
 
@@ -365,6 +367,23 @@ void BRSendGetAddr(BRConnection *c) {
     CBMessage *m = CBNewMessageByObject();
     BRSendMessage(c, m, "getaddr");
     CBFreeMessage(m);
+}
+
+void BRHandleBlock(BRConnection *c, CBByteArray *message) {
+    BRBlockChain *bc = ((BRConnector *) c->connector)->block_chain;
+    CBBlock *block = CBNewBlockFromData(message);
+    CBBlockDeserialise(block, true);
+
+    /* process block */
+    CBBlockStatus status = CBFullValidatorProcessBlock(bc->validator,
+                                                    block, time(NULL));
+#ifdef BRDEBUG
+    if (status != CB_BLOCK_STATUS_MAIN) {
+        fprintf(stderr, "Block didn't extend the main branch. Status: %d. See CBBlockStatus struct in include/CBFullValidator.h\n", status);
+    }
+#endif
+
+    CBReleaseObject(block);
 }
 
 /* sends a getdata if needed */

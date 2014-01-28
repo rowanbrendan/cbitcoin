@@ -190,7 +190,6 @@ int main(int argc, char *argv[]) {
     /* initialize block chain and selector */
     char *dir = make_dir(argv[1]);
     block_chain = BRNewBlockChain(dir);
-    free(dir);
     selector = BRNewSelector();
 
     /* allow readline to work with select */
@@ -198,5 +197,7 @@ int main(int argc, char *argv[]) {
     BRAddSelectable(selector, STDIN_FILENO, readline_callback, NULL, 0, FOR_READING);
 
     BRLoop(selector);
+
+    free(dir);
     return 0;
 }

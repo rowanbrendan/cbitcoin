@@ -176,9 +176,12 @@ bool CBFullValidatorAddBlockToOrphans(CBFullValidator * self, CBBlock * block){
 	uint8_t pos;
 	if (self->numOrphans == CB_MAX_ORPHAN_CACHE) {
 		// Release old orphan
+#ifdef BRDEBUG
+        printf("Max cache %d\nfirstOrphan %d\n", CB_MAX_ORPHAN_CACHE, self->firstOrphan);
+#endif
 		CBReleaseObject(self->orphans[self->firstOrphan]);
 		pos = self->firstOrphan;
-		self->firstOrphan++;
+		self->firstOrphan = (self->firstOrphan + 1) % CB_MAX_ORPHAN_CACHE;
 	}else
 		// Adding an orphan.
 		pos = self->numOrphans++;

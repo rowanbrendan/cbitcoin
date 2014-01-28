@@ -28,6 +28,7 @@ void BRSendGetBlocks(BRConnection *);
 void BRSendAddr(BRConnection *);
 void BRHandleAddr(BRConnection *, CBByteArray *);
 void BRHandleInv(BRConnection *, CBByteArray *);
+void BRHandleBlock(BRConnection *, CBByteArray *);
 bool BRVersionExchanged(BRConnection *); /* if ver_sent and ver_received */
 
 #endif
